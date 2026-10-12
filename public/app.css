@@ -1,0 +1,233 @@
+/*
+ * Pitch Deck.
+ *
+ * Built for a projector in the back room of a bar, which sets almost every
+ * decision here: type big enough to read from the back, contrast high enough
+ * to survive a cheap lamp and the house lights being half up, and no webfont
+ * or CDN anywhere, because the deck must not look different on the night the
+ * venue wifi is bad.
+ *
+ * The red is the one in the room already -- the exit sign and the record
+ * light on the camera at the back.
+ */
+:root {
+  --ink: #0e0f13;
+  --stage: #15161a;
+  --bone: #f4f2ed;
+  --muted: #8a8e9b;
+  --signal: #e2342b;
+  --line: #262830;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--bone);
+  font: 16px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; }
+
+/* ── Home ─────────────────────────────────────────────────────────────── */
+
+.wrap { max-width: 56rem; margin: 0 auto; padding: 4rem 1.5rem 6rem; }
+
+.brand {
+  font-size: clamp(2.75rem, 9vw, 5rem);
+  line-height: 0.95;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+.brand span { color: var(--signal); }
+
+.lede {
+  margin: 1.25rem 0 3rem;
+  font-size: clamp(1.05rem, 2.4vw, 1.35rem);
+  color: var(--muted);
+  max-width: 34ch;
+}
+
+form { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+
+input[type="text"] {
+  flex: 1 1 22rem;
+  min-width: 0;
+  background: var(--stage);
+  border: 2px solid var(--line);
+  color: var(--bone);
+  font: inherit;
+  font-size: 1.35rem;
+  padding: 1rem 1.15rem;
+  border-radius: 2px;
+}
+input[type="text"]:focus {
+  outline: none;
+  border-color: var(--signal);
+}
+input::placeholder { color: #5a5e6b; }
+
+button, .btn {
+  background: var(--signal);
+  color: #fff;
+  border: 0;
+  font: inherit;
+  font-size: 1.15rem;
+  font-weight: 700;
+  padding: 1rem 1.75rem;
+  border-radius: 2px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+button:hover, .btn:hover { filter: brightness(1.12); }
+.btn--quiet {
+  background: transparent;
+  color: var(--muted);
+  border: 2px solid var(--line);
+  font-weight: 600;
+}
+.btn--quiet:hover { color: var(--bone); border-color: var(--muted); filter: none; }
+
+.error { color: var(--signal); margin: 1rem 0 0; font-weight: 600; }
+
+.past { margin-top: 4.5rem; border-top: 1px solid var(--line); padding-top: 1.5rem; }
+.past h2 {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  margin: 0 0 1.25rem;
+  font-weight: 700;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 0.5rem; list-style: none; margin: 0; padding: 0; }
+.chips a {
+  display: block;
+  background: var(--stage);
+  border: 1px solid var(--line);
+  padding: 0.5rem 0.9rem;
+  border-radius: 2px;
+  text-decoration: none;
+  font-size: 0.95rem;
+  /* Someone will type a paragraph. The chip must not become the page. */
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chips a:hover { border-color: var(--signal); color: #fff; }
+.empty { color: var(--muted); margin: 0; }
+
+/* ── Slideshow ────────────────────────────────────────────────────────── */
+
+.show { height: 100dvh; display: flex; flex-direction: column; }
+
+.stage {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  min-height: 0;
+}
+
+/*
+ * A fixed 16:9 box that scales to whatever it is projected on, so what is on
+ * the screen is what is in the downloaded file.
+ */
+.slide {
+  width: min(100%, calc((100dvh - 7rem) * 16 / 9));
+  aspect-ratio: 16 / 9;
+  background: var(--stage);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 5%;
+  /* Type scales with the slide, not the viewport: the layout has to hold at
+     any projector size. */
+  container-type: inline-size;
+}
+.slide[hidden] { display: none; }
+
+.slide h1 { font-size: 9cqw; line-height: 1.02; margin: 0; letter-spacing: -0.03em; font-weight: 800; }
+.slide h2 { font-size: 6.4cqw; line-height: 1.08; margin: 0; letter-spacing: -0.02em; font-weight: 800; }
+.slide p { font-size: 2.6cqw; color: var(--muted); margin: 1.2em 0 0; max-width: 40ch; }
+
+.slide--title, .slide--closing { background: var(--signal); }
+.slide--title h1, .slide--closing h2 { color: #fff; }
+.slide--title .kicker {
+  margin-top: 1.6em;
+  font-size: 1.8cqw;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #ffd9d5;
+  font-weight: 700;
+}
+
+.slide--statement { flex-direction: row; align-items: center; gap: 5%; }
+.slide--statement .words { flex: 1 1 0; min-width: 0; }
+.slide--statement figure { flex: 0 0 42%; margin: 0; align-self: stretch; display: flex; }
+.slide--statement img { width: 100%; height: 100%; object-fit: cover; }
+
+.slide--quote { align-items: center; text-align: center; }
+.slide--quote img {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover;
+}
+/* The scrim is what keeps the quote readable over somebody's holiday photo. */
+.slide--quote::after { content: ""; position: absolute; inset: 0; background: rgba(0,0,0,.6); }
+.slide--quote .words { position: relative; z-index: 1; max-width: 80%; }
+.slide--quote h2 { font-size: 5cqw; }
+.slide--quote .attrib { margin-top: 1.4em; font-size: 2.4cqw; color: #e8c9be; font-weight: 600; }
+
+.slide--chart .plot {
+  display: flex; align-items: flex-end; gap: 2.5cqw;
+  height: 52%; margin-top: 4cqw;
+}
+.bar { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+.bar i { display: block; background: var(--signal); width: 100%; }
+.bar .v { font-size: 2.2cqw; font-weight: 800; text-align: center; margin-bottom: .4em; }
+.bar .l { font-size: 1.9cqw; color: var(--muted); text-align: center; margin-top: .5em; }
+
+.slide--closing ul { margin: 1.5em 0 0; padding: 0; list-style: none; }
+.slide--closing li { font-size: 3.4cqw; color: #fbe7e1; margin: .5em 0; font-weight: 600; }
+
+.credit {
+  position: absolute; right: 2%; bottom: 1.5%;
+  font-size: 1.3cqw; color: rgba(255,255,255,.45); z-index: 2;
+  max-width: 45%; text-align: right;
+}
+
+/* ── Controls ─────────────────────────────────────────────────────────── */
+
+.bar-controls {
+  display: flex; align-items: center; gap: 1rem;
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.nav { display: flex; gap: 0.5rem; }
+.nav button {
+  background: var(--stage); border: 2px solid var(--line); color: var(--bone);
+  font-size: 1.4rem; line-height: 1; padding: 0.55rem 1.1rem; font-weight: 700;
+}
+.nav button:hover:not(:disabled) { border-color: var(--signal); filter: none; }
+.nav button:disabled { opacity: 0.3; cursor: default; }
+
+.counter { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 700; letter-spacing: .05em; }
+.said { flex: 1; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.said b { color: var(--bone); font-weight: 700; }
+.actions { display: flex; gap: 0.5rem; }
+.actions .btn { font-size: 0.95rem; padding: 0.6rem 1rem; }
+
+:focus-visible { outline: 3px solid var(--signal); outline-offset: 2px; }
+
+@media (max-width: 620px) {
+  .slide--statement { flex-direction: column; justify-content: center; }
+  .slide--statement figure { flex: 0 0 38%; width: 100%; }
+  .said { display: none; }
+}

@@ -1,0 +1,15 @@
+# Built from data/dict + data/en_full.txt by bin/build-wordnet.php. 31 MB, and
+# reproducible in seven seconds, so it does not belong in history.
+/data/wordnet.sqlite
+/data/wordnet.sqlite-*
+
+# The source corpora. WordNet 3.1 (~20 MB) and the OpenSubtitles frequency
+# list (~20 MB); both are downloads, not our work. See README.
+/data/dict/
+/data/en_full.txt
+
+# Audience suggestions and fetched pictures: runtime state, not source.
+/data/decks.sqlite
+/data/decks.sqlite-*
+/storage/images/
+/storage/logs/
