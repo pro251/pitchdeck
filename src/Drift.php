@@ -109,7 +109,7 @@ final class Drift
     public const LEVELS = [
         1 => [
             'name' => 'Gentle',
-            'blurb' => 'The slides are plainly about the word',
+            'blurb' => 'Slides that are obviously about your word',
             'strategies' => [['near', 6], ['part', 4], ['substance', 2], ['cousin', 1]],
             'climb' => [0, 2],
             'pool' => 0.0,
@@ -123,7 +123,7 @@ final class Drift
         ],
         3 => [
             'name' => 'Standard',
-            'blurb' => 'Arguably related. You will have to do some work',
+            'blurb' => 'Related if you squint. You\'ll have to work for it',
             'strategies' => [['cousin', 6], ['part', 3], ['substance', 2], ['near', 1]],
             'climb' => [2, 3],
             'pool' => 0.0,
@@ -137,7 +137,7 @@ final class Drift
         ],
         5 => [
             'name' => 'Hostile',
-            'blurb' => 'Some slides have nothing to do with it at all',
+            'blurb' => 'Some slides won\'t relate at all',
             'strategies' => [['cousin', 8], ['part', 1]],
             'climb' => [6, 4],
             'pool' => 0.4,

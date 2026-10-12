@@ -36,7 +36,7 @@ final class Copy
         'Internal use only',
         'Q3 strategy review',
         'Prepared for the board',
-        'Draft — please do not circulate',
+        'Draft: please do not circulate',
         'Findings and recommendations',
         'Year one',
         'A working document',
@@ -53,7 +53,7 @@ final class Copy
      */
     public const STATEMENTS = [
         'It starts with the {c}',
-        'Nobody was talking about the {c}',
+        "Nobody was talking about the {c}",
         'The {c} problem',
         'We kept coming back to the {c}',
         'Consider the {c}',
@@ -64,19 +64,19 @@ final class Copy
         'You already own a {c}',
         'The competition ignored the {c}',
         'Our first prototype was a {c}',
-        'Ask yourself: where is your {c}?',
-        'The {c} is not the enemy',
+        "Ask yourself: where's your {c}?",
+        "The {c} isn't the enemy",
         'Six months on the {c}',
     ];
 
     /** Smaller text under a statement, in the register of a real deck. */
     public const SUPPORTS = [
-        'The implications are significant.',
-        'We were as surprised as you are.',
-        'This is the part people push back on.',
-        'Industry-wide, this is still unsolved.',
-        'It is early, but the signal is there.',
-        'We have been saying this for years.',
+        "The implications are significant.",
+        "We were as surprised as you are.",
+        "This is the part people push back on.",
+        "Nobody in the industry has solved this.",
+        "It's early, but the signal is there.",
+        "We've been saying this for years.",
         'The numbers bear this out.',
         'Happy to go deeper on this one.',
         'This is where it gets interesting.',
@@ -118,11 +118,11 @@ final class Copy
         'of the market is still unserved',
         'growth since we started counting',
         'faster than the nearest {c}',
-        'of respondents could not tell the difference',
+        "of respondents couldn't tell the difference",
         'before anyone noticed',
-        'and that is the conservative figure',
+        "and that's the conservative figure",
         'in the first quarter alone',
-        'of what the {c} was costing us',
+        "of what the {c} was costing us",
     ];
 
     /** Headings for a big-number slide. */
@@ -138,10 +138,10 @@ final class Copy
     public const QUESTIONS = [
         'What if the {c} was the point?',
         'Who owns the {c}?',
-        'Why has nobody fixed the {c}?',
-        'Is the {c} really the problem?',
+        "Why hasn't anybody fixed the {c}?",
+        "Is the {c} really the problem?",
         'What would you pay for a better {c}?',
-        'How long can we ignore the {c}?',
+        "How long can we ignore the {c}?",
         'Where does the {c} go next?',
     ];
 
@@ -157,12 +157,12 @@ final class Copy
 
     /** Mid-deck bullets. */
     public const LESSONS = [
-        'The {c} was never the bottleneck',
+        "The {c} was never the bottleneck",
         'Nobody asked for the {c}',
-        'We built the {c} twice',
-        'The {c} is cheaper than it looks',
+        "We built the {c} twice",
+        "The {c} is cheaper than it looks",
         'Everyone already has a {c}',
-        'The {c} does not scale',
+        "The {c} doesn't scale",
         'We underestimated the {c}',
         'The {c} is a people problem',
         'Our customers kept mentioning the {c}',
@@ -185,8 +185,8 @@ final class Copy
         'Commit to the {c}',
         'Revisit {s} in the new year',
         'Double the {c} budget',
-        'Stop pretending the {c} is optional',
-        'Hire somebody who understands {c}',
+        "Stop pretending the {c} is optional",
+        "Hire somebody who understands {c}",
         'Begin the {c} pilot in March',
         'Take the {c} seriously',
         'One more look at {s}',

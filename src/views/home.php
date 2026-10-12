@@ -20,13 +20,13 @@ $levels = Drift::LEVELS;
   <h1 class="brand">Power<span>Pointless</span></h1>
   <div class="synopsis">
     <p>Someone in the audience shouts a word.</p>
-    <p>A few seconds later there are slides on the screen behind you &mdash; a title, a chart that rises
-       for no stated reason, a quotation from somebody long dead, photographs of things that are almost
-       but not quite what was shouted. You have not seen them. Nobody has.</p>
-    <p>Then you present them, straight-faced, as though you wrote them.</p>
-    <p class="synopsis__how">The slides are made by walking the dictionary sideways from the word you
-       were given. Ask for a lobster and the deck may be about a wheelbarrow, and explaining why is
-       the act. Set how many slides you want and how far it is allowed to wander.</p>
+    <p>A few seconds later there are slides on the screen behind you. A title, a chart going up, a
+       quote from someone dead, photos of things that aren't quite what was shouted. You haven't
+       seen any of it.</p>
+    <p>Then you present it, straight-faced, like you wrote it.</p>
+    <p class="synopsis__how">The slides start from your word and wander off it. Say lobster and you
+       might get a wheelbarrow, and you have to talk your way from one to the other. Pick how many
+       slides you want and how far they can drift.</p>
   </div>
 
   <form method="post" action="/" id="make">
