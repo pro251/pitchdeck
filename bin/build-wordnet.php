@@ -62,7 +62,7 @@ $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $db->exec('PRAGMA journal_mode = OFF');
 $db->exec('PRAGMA synchronous = OFF');
 $db->exec('CREATE TABLE synset (offset TEXT PRIMARY KEY, words TEXT NOT NULL, gloss TEXT, lex INTEGER NOT NULL, blocked INTEGER NOT NULL DEFAULT 0, usable INTEGER NOT NULL DEFAULT 0, kids INTEGER NOT NULL DEFAULT 0)');
-$db->exec('CREATE TABLE word (lemma TEXT NOT NULL, offset TEXT NOT NULL, freq INTEGER NOT NULL DEFAULT 0, blocked INTEGER NOT NULL DEFAULT 0)');
+$db->exec('CREATE TABLE word (lemma TEXT NOT NULL, offset TEXT NOT NULL, freq INTEGER NOT NULL DEFAULT 0, blocked INTEGER NOT NULL DEFAULT 0, proper INTEGER NOT NULL DEFAULT 0, concreteness INTEGER NOT NULL DEFAULT 0)');
 $db->exec('CREATE TABLE edge (src TEXT NOT NULL, dst TEXT NOT NULL, rel TEXT NOT NULL)');
 
 /*
@@ -95,6 +95,14 @@ $db->exec('CREATE TABLE edge (src TEXT NOT NULL, dst TEXT NOT NULL, rel TEXT NOT
  * that matters, since a specific object is the whole joke.
  */
 const MIN_FREQ = 50;
+
+/**
+ * How much of a word must be photographable, as a percentage of its senses.
+ *
+ * Strictly more than half: at exactly half sit "total" and "vertical", which
+ * are not slide subjects whatever WordNet thinks of their second sense.
+ */
+const MIN_CONCRETENESS = 50;
 
 const OFFENSIVE_DOMAINS = [
     '06730109', // disparagement, derogation
@@ -130,7 +138,7 @@ $edges = 0;
 $blockedCount = 0;
 
 $insSyn = $db->prepare('INSERT OR IGNORE INTO synset (offset, words, gloss, lex, blocked) VALUES (?, ?, ?, ?, ?)');
-$insWord = $db->prepare('INSERT INTO word (lemma, offset) VALUES (?, ?)');
+$insWord = $db->prepare('INSERT INTO word (lemma, offset, proper) VALUES (?, ?, ?)');
 $insEdge = $db->prepare('INSERT INTO edge (src, dst, rel) VALUES (?, ?, ?)');
 
 $db->beginTransaction();
@@ -190,7 +198,21 @@ while (($line = fgets($fh)) !== false) {
     }
 
     foreach ($words as $lemma) {
-        $insWord->execute([mb_strtolower($lemma), $offset]);
+        /*
+         * Proper nouns, flagged per SENSE rather than per word.
+         *
+         * WordNet capitalises them, and this is the only place that
+         * capitalisation survives -- the lemma column is lowercased, which is
+         * what silently killed the capital-letter filter downstream and let
+         * "gerald rudolph ford" onto a slide.
+         *
+         * Per sense because "ford" is both a river crossing and six different
+         * men called Ford. Flagging the whole word would lose the crossing;
+         * flagging neither puts a dead president in a deck about cars.
+         */
+        $proper = (int) ($lemma !== mb_strtolower($lemma));
+
+        $insWord->execute([mb_strtolower($lemma), $offset, $proper]);
     }
 
     foreach ($pointers as [$symbol, $target, $pos]) {
@@ -249,8 +271,28 @@ $db->commit();
  * walking into one costs the deck a slide.
  */
 $db->exec('UPDATE synset SET usable = (
-    SELECT count(*) FROM word w WHERE w.offset = synset.offset AND w.freq >= '.MIN_FREQ.' AND w.blocked = 0
+    SELECT count(*) FROM word w WHERE w.offset = synset.offset AND w.freq >= '.MIN_FREQ.' AND w.blocked = 0 AND w.proper = 0 AND w.concreteness > '.MIN_CONCRETENESS.'
 ) WHERE blocked = 0');
+
+/*
+ * What share of a word's senses are things you could photograph.
+ *
+ * The lex check on a single synset is not enough, because the walk judges the
+ * SENSE it arrived through and the audience reads the WORD. "Change" reached a
+ * slide through its concrete sense -- coins in a pocket -- and on screen it is
+ * the abstract noun; so did "substance", "system" and "realm".
+ *
+ * Measured across every sense, so a word that is mostly abstract is refused
+ * however it was reached. The ones causing trouble sit at 13-44%; engine is
+ * 75% and wheelbarrow 100%.
+ */
+// Coalesced: a lemma whose every sense is a proper noun matches no rows here,
+// and the subquery then returns NULL into a NOT NULL column.
+$db->exec('UPDATE word SET concreteness = COALESCE((
+    SELECT round(100.0 * sum(CASE WHEN s.lex IN (5, 6, 8, 13, 15, 17, 18, 20, 27) THEN 1 ELSE 0 END) / count(*))
+    FROM word w2 JOIN synset s ON s.offset = w2.offset
+    WHERE w2.lemma = word.lemma AND w2.proper = 0
+), 0)');
 
 /*
  * A word is blocked if ANY of its senses is.
@@ -296,7 +338,7 @@ $db->exec("UPDATE synset SET kids = (
 $db->exec('CREATE TABLE pool (id INTEGER PRIMARY KEY, lemma TEXT NOT NULL)');
 $db->exec("INSERT INTO pool (lemma) SELECT DISTINCT w.lemma
            FROM word w JOIN synset s ON s.offset = w.offset
-           WHERE s.blocked = 0 AND w.blocked = 0 AND w.freq >= ".(MIN_FREQ * 6)."
+           WHERE s.blocked = 0 AND w.blocked = 0 AND w.proper = 0 AND w.concreteness > ".MIN_CONCRETENESS." AND w.freq >= ".(MIN_FREQ * 6)."
              AND s.lex IN (5, 6, 13, 17, 20)
              AND w.lemma NOT LIKE '% %'
            ORDER BY w.lemma");
@@ -310,9 +352,10 @@ printf("synsets %d\nblocked %d synsets\nwords   %d\nedges   %d\nsize    %s\n",
 );
 
 printf("blocked %d words (any sense flagged)\n", (int) $db->query('SELECT count(DISTINCT lemma) FROM word WHERE blocked = 1')->fetchColumn());
+printf("proper  %d proper-noun senses excluded\n", (int) $db->query('SELECT count(*) FROM word WHERE proper = 1')->fetchColumn());
 printf("pool    %d plain objects\n", (int) $db->query('SELECT count(*) FROM pool')->fetchColumn());
 printf("usable  %d words at freq >= %d\n",
     (int) $db->query('SELECT count(DISTINCT w.lemma) FROM word w JOIN synset s ON s.offset = w.offset
-                      WHERE w.freq >= '.MIN_FREQ.' AND s.blocked = 0 AND w.blocked = 0')->fetchColumn(),
+                      WHERE w.freq >= '.MIN_FREQ.' AND s.blocked = 0 AND w.blocked = 0 AND w.proper = 0 AND w.concreteness > '.MIN_CONCRETENESS)->fetchColumn(),
     MIN_FREQ
 );

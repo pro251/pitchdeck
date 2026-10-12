@@ -147,6 +147,27 @@ choice, it reads as a slide that failed to load.
   both candidates and take the winner.
 - **PHP's `/` returns an int when it divides evenly.** `0/255` is int 0, which
   made `toHsl` quietly stop honouring its own float return type.
+- **`continue 3` left the wrong loop.** In `Drift::candidates()` it exited the
+  phrase-length loop instead of the word loop, so a multi-word suggestion only
+  ever considered its FIRST matching word. "Ford motors" became a deck about a
+  shallow river crossing. It looked right for a long time because the first
+  match is usually the right one, and the test that should have caught it was
+  asserting the first word too.
+- **The lemma column is lowercased, which killed the capital-letter filter.**
+  It was comparing a lowercased string to itself and had never rejected
+  anything, so WordNet's six men called Ford were eligible for slides. Proper
+  nouns are flagged per SENSE at build time now -- per sense, because "ford" is
+  both a river crossing and those six men.
+- **A word is judged by all its senses, not the one the walk used.** "Change"
+  reached a slide through its concrete sense -- coins in a pocket -- and on
+  screen it is the abstract noun. Same shape as the slur fix: the room reads
+  the word. `word.concreteness` is the share of a lemma's senses that are
+  photographable, and must exceed 50%.
+- **Low difficulty must degrade, not fall over.** A word with few near
+  neighbours used to drop straight through to the unrelated pool, so asking
+  for Gentle returned the most random thing in the dictionary. The walk now
+  widens its climb in stages first, turning Gentle into Fair rather than into
+  noise, and reaches the pool only when every distance is exhausted.
 - **This box drops every connection past about 18 in flight.** Not a provider
   refusing — all of them fail together with no response, which looks exactly
   like the whole internet being down. `Http::MAX_PARALLEL` is 12.

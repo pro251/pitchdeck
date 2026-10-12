@@ -40,6 +40,16 @@ final class Drift
     private const MIN_FREQ = 50;
 
     /**
+     * How much of a word must be photographable, as a percentage of its
+     * senses. Matches bin/build-wordnet.php.
+     *
+     * The lex check on one synset judges the sense the walk arrived through;
+     * the room reads the word. "Change" got onto a slide through its concrete
+     * sense -- coins -- and on screen it is the abstract noun.
+     */
+    private const MIN_CONCRETENESS = 50;
+
+    /**
      * Words to ignore when picking a seed out of a sentence.
      *
      * Deliberately short. The scoring below handles most of the work -- a
@@ -136,6 +146,9 @@ final class Drift
 
     public const DEFAULT_LEVEL = 3;
 
+    /** The suggestion currently being walked, for the near-relative check. */
+    private string $walking = '';
+
     public function __construct(private PDO $db) {}
 
     public static function open(string $path): self
@@ -164,13 +177,22 @@ final class Drift
             return '';
         }
 
+        $words = preg_split('/\s+/', trim($input), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
         // Score, then take the best. Position breaks a tie toward the later
         // word, which in English is more often the subject of the complaint.
+        // English compounds are head-final: "ford motors" is a kind of motor,
+        // not a kind of ford. In a sentence that rule does not hold -- "my
+        // landlord keeps the heating off" is about the landlord, not the
+        // heating -- so this is measured on the INPUT length, not on how many
+        // candidates survived. A six-word sentence can easily leave two.
+        $weight = count($words) <= 3 ? 25 : 2;
+
         $best = null;
         $bestScore = -1;
 
         foreach ($candidates as $position => $lemma) {
-            $score = $this->scoreSeed($lemma) + $position;
+            $score = $this->scoreSeed($lemma) + $position * $weight;
 
             if ($score > $bestScore) {
                 $bestScore = $score;
@@ -221,7 +243,14 @@ final class Drift
                         $found[$i] = $form;
                         $taken = [...$taken, ...$span];
 
-                        continue 3;
+                        // Two, not three. `continue 3` leaves the LENGTH loop,
+                        // which ended the search after the first word that
+                        // matched anything -- so a multi-word suggestion only
+                        // ever considered its opening word, and "ford motors"
+                        // was a deck about a river crossing. It looked correct
+                        // for a long time because the first match is usually
+                        // the right one.
+                        continue 2;
                     }
                 }
             }
@@ -271,14 +300,19 @@ final class Drift
         $row = $this->db->prepare(
             'SELECT count(*) AS senses,
                     sum(CASE WHEN s.lex IN ('.implode(',', self::CONCRETE).') THEN 1 ELSE 0 END) AS concrete,
-                    (SELECT count(*) FROM edge e JOIN word w2 ON w2.offset = e.src WHERE w2.lemma = w.lemma) AS edges
+                    (SELECT count(*) FROM edge e JOIN word w2 ON w2.offset = e.src
+                     WHERE w2.lemma = w.lemma AND w2.proper = 0) AS edges
              FROM word w JOIN synset s ON s.offset = w.offset
-             WHERE w.lemma = ?'
+             WHERE w.lemma = ? AND w.proper = 0 AND w.blocked = 0'
         );
         $row->execute([$lemma]);
         $r = $row->fetch();
 
-        return ((int) $r['concrete'] * 20)
+        // Capped at three. Counting every concrete sense made "ford" beat
+        // "motor" in "ford motors", because WordNet holds six different men
+        // called Ford and each one scored -- a word is not a better subject
+        // for being ambiguous.
+        return min(3, (int) $r['concrete']) * 20
             + min(30, (int) $r['edges'])
             + min(5, (int) $r['senses']);
     }
@@ -288,7 +322,7 @@ final class Drift
     {
         $q = $this->db->prepare(
             'SELECT s.offset, s.lex FROM word w JOIN synset s ON s.offset = w.offset
-             WHERE w.lemma = ? AND s.blocked = 0 AND w.blocked = 0'
+             WHERE w.lemma = ? AND s.blocked = 0 AND w.blocked = 0 AND w.proper = 0'
         );
         $q->execute([$lemma]);
 
@@ -313,6 +347,7 @@ final class Drift
     public function drift(string $word, int $count, Rng $rng, int $level = self::DEFAULT_LEVEL): array
     {
         $level = self::LEVELS[$level] ?? self::LEVELS[self::DEFAULT_LEVEL];
+        $this->walking = mb_strtolower($word);
         $start = $this->offsets($word);
 
         if ($start === []) {
@@ -322,24 +357,58 @@ final class Drift
             return $this->fromPool($count, [], $rng);
         }
 
-        $found = [];
         $seen = [mb_strtolower($word) => true];
+        $found = [];
 
         // At the hardest level part of the deck is simply unrelated. Taken
         // first so the walk below does not have to fill those places.
-        $fromPool = (int) round($count * $level['pool']);
-
-        foreach ($this->fromPool($fromPool, $seen, $rng) as $unrelated) {
+        foreach ($this->fromPool((int) round($count * $level['pool']), $seen, $rng) as $unrelated) {
             $seen[mb_strtolower($unrelated)] = true;
             $found[] = $unrelated;
         }
 
-        // Weighted toward cousins at the usual setting, because those carry
-        // the joke. Parts and substances are funny differently -- a slide
-        // about what a lobster is made of -- and a near miss is the easiest
-        // thing in the deck to defend, which is why the gentle levels lean on
-        // it.
-        $strategies = $level['strategies'];
+        /*
+         * Walk at the requested distance, then further if it came up short.
+         *
+         * The escalation is the point. A word with few near neighbours used to
+         * fall straight through to the unrelated pool, which meant asking for
+         * Gentle and being handed the most random thing in the dictionary --
+         * the exact opposite of the setting. Widening the climb degrades
+         * Gentle into Fair and Fair into Standard, which is a near miss rather
+         * than a non sequitur.
+         */
+        $climb = $level['climb'];
+
+        for ($pass = 0; $pass < 4 && count($found) < $count; $pass++) {
+            $found = [
+                ...$found,
+                ...$this->walk($start, $count - count($found), $seen, $level['strategies'], $climb, $rng),
+            ];
+
+            $climb = [$climb[0] + 2, $climb[1] + 1];
+        }
+
+        // Only now, with every distance exhausted, does the unrelated pool
+        // fill what is left. A deck is five slides whatever the dictionary
+        // managed to supply.
+        $concepts = [...$found, ...$this->fromPool($count - count($found), $seen, $rng)];
+
+        // At the hardest level the unrelated ones were taken first and so
+        // landed on the opening slides, which gives the game away: the deck
+        // starts nowhere near the word and then settles down. Spread them.
+        return $level['pool'] > 0 ? $rng->shuffled($concepts) : $concepts;
+    }
+
+    /**
+     * One pass of the walk, at a given distance.
+     *
+     * @param  array<int, array>  $start  synsets for the suggestion
+     * @param  array<string, bool>  $seen  lowercased words already used, by reference
+     * @return array<int, string>
+     */
+    private function walk(array $start, int $count, array &$seen, array $strategies, array $climb, Rng $rng): array
+    {
+        $found = [];
         $attempts = 0;
 
         while (count($found) < $count && $attempts < $count * self::BUDGET) {
@@ -347,7 +416,7 @@ final class Drift
 
             $at = $rng->pick($start)['offset'];
             $landed = match ($rng->pickWeighted($strategies)) {
-                'cousin' => $this->cousin($at, $rng, $level['climb']),
+                'cousin' => $this->cousin($at, $rng, $climb),
                 'part' => $this->along($at, ['part_of', 'has_part', 'member_of', 'has_member'], $rng),
                 'substance' => $this->along($at, ['made_of', 'substance_of'], $rng),
                 default => $this->along($at, ['hyponym'], $rng),
@@ -373,7 +442,7 @@ final class Drift
                 // into the family it came from, and "cheese rind" on a
                 // Hostile deck about cheese is the one slide the performer
                 // does not have to work for.
-                if ($level['climb'][0] >= 4 && $this->related($key, $word)) {
+                if ($climb[0] >= 4 && $this->related($key, $this->walking)) {
                     continue;
                 }
 
@@ -386,18 +455,7 @@ final class Drift
             }
         }
 
-        // Short, which happens two ways: a word with almost no edges, and an
-        // abstract suggestion whose whole neighbourhood is abstract. Both get
-        // padded with plain objects rather than with abstractions -- a slide
-        // showing a wheelbarrow under the heading "loneliness" is the joke
-        // working, and one showing the word "indifference" is the joke
-        // failing.
-        $concepts = [...$found, ...$this->fromPool($count - count($found), $seen, $rng)];
-
-        // At the hardest level the unrelated ones were taken first and so
-        // landed on the opening slides, which gives the game away: the deck
-        // starts nowhere near the word and then settles down. Spread them.
-        return $level['pool'] > 0 ? $rng->shuffled($concepts) : $concepts;
+        return $found;
     }
 
     /**
@@ -564,18 +622,21 @@ final class Drift
             // w.blocked, not only s.blocked: a lemma with one flagged sense
             // is refused whichever sense the walk arrived through, because
             // the room reads the word.
+            //
+            // w.proper is what keeps people and places off the slides. It is
+            // flagged at build time from WordNet's own capitalisation, which
+            // is the only place that survives -- this column reads lowercase,
+            // so the capital check that used to live here was comparing a
+            // lowercased string to itself and had never rejected anything.
             'SELECT w.lemma, w.freq FROM word w JOIN synset s ON s.offset = w.offset
-             WHERE w.offset = ? AND s.blocked = 0 AND w.blocked = 0 AND w.freq >= ?'
+             WHERE w.offset = ? AND s.blocked = 0 AND w.blocked = 0 AND w.proper = 0
+               AND w.freq >= ? AND w.concreteness > ?'
         );
-        $q->execute([$offset, self::MIN_FREQ]);
+        $q->execute([$offset, self::MIN_FREQ, self::MIN_CONCRETENESS]);
 
         $words = array_filter(
             $q->fetchAll(),
-            // Any capital rules a word out. WordNet carries genus names and
-            // abbreviations beside ordinary words -- Decapoda, Homaridae, MT,
-            // Si -- and a slide captioned "Si" reads as a bug on stage rather
-            // than a joke.
-            fn ($w) => $w['lemma'] === mb_strtolower($w['lemma']) && ! preg_match('/\d/', $w['lemma'])
+            fn ($w) => ! preg_match('/\d/', $w['lemma'])
         );
 
         if ($words === []) {

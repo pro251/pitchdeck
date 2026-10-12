@@ -16,12 +16,124 @@ test('a single word is its own seed', function () {
 });
 
 /*
- * The deck is about the most photographable noun in the sentence, not the
- * first word in it. A deck about "my" is a deck about nothing.
+ * The deck is about a photographable noun from the sentence, never a
+ * function word. A deck about "my" is a deck about nothing.
+ *
+ * Which content noun wins is deliberately NOT pinned. "My landlord keeps the
+ * heating off" is a fair deck about either the landlord or the heating, and
+ * the scorer picks on how much the dictionary has to say about each -- an
+ * earlier version asserted "landlord" here and was passing for the wrong
+ * reason, because a bug meant only the first matching word was ever
+ * considered at all.
  */
-test('a sentence yields its concrete noun, not its first word', function () {
-    expect(drift()->seed('my landlord keeps the heating off'))->toBe('landlord');
+test('a sentence yields a content noun, never a function word', function () {
+    expect(['landlord', 'heating'])->toContain(drift()->seed('my landlord keeps the heating off'));
     expect(drift()->seed('the bus was late again'))->toBe('bus');
+    expect(drift()->seed('my cat hates me'))->toBe('cat');
+});
+
+/*
+ * English compounds are head-final: "ford motors" is a kind of motor, not a
+ * kind of ford. This is what Brad hit -- the deck came back about a shallow
+ * river crossing, and at Gentle, which made it look like the difficulty
+ * slider was broken when the seed was wrong before difficulty was consulted.
+ */
+test('a short compound is about its last word', function () {
+    expect(drift()->seed('ford motors'))->toBe('motor');
+    expect(drift()->seed('hot air balloon'))->toBe('balloon');
+});
+
+// The whole input used to be abandoned after the first word that matched
+// anything, so every later word was invisible to the scorer.
+test('it considers every word of the input, not just the first', function () {
+    // "ford" matches on its own, and "motor" is the better seed. If only the
+    // first match were considered this would return "ford".
+    expect(drift()->seed('ford motors'))->toBe('motor');
+    // A known phrase still beats its separate words.
+    expect(drift()->seed('a haunted vending machine'))->toBe('vending machine');
+});
+
+/*
+ * WordNet holds six different men called Ford, and the lemma column is
+ * lowercased -- which silently killed the capital-letter filter that was
+ * supposed to keep people off the slides, because it was comparing a
+ * lowercased string to itself.
+ */
+test('it never puts a person on a slide', function () {
+    foreach ([1, 3, 5] as $level) {
+        foreach (['ford', 'lincoln', 'washington', 'kennedy'] as $word) {
+            foreach (drift()->drift($word, 8, new Rng("$word-$level"), $level) as $concept) {
+                foreach (['ford madox', 'henry ford', 'gerald', 'rudolph', 'edsel', 'president'] as $person) {
+                    expect(str_contains(mb_strtolower($concept), $person))->toBeFalsy(
+                        "\"$word\" at level $level returned \"$concept\""
+                    );
+                }
+            }
+        }
+    }
+});
+
+/*
+ * A word that is mostly abstract reads as abstract on a slide whichever sense
+ * the walk arrived through. "Change" reached one through its concrete sense --
+ * coins in a pocket -- and on screen it is the abstract noun.
+ */
+test('it never surfaces a word that is mostly abstract', function () {
+    // "local" is deliberately absent: both of its noun senses are concrete --
+    // a stopping train and a local anaesthetic -- so it scores 100% and no
+    // amount of sense-counting will catch it. It reads wrong on a slide
+    // because the word is overwhelmingly an adjective in use, which is a
+    // signal this build does not load. One word, and a real noun.
+    $banned = ['change', 'substance', 'system', 'realm', 'total', 'vertical'];
+
+    foreach ([1, 3, 5] as $level) {
+        foreach (['lobster', 'cheese', 'beach', 'motor', 'bus'] as $word) {
+            foreach (range(1, 4) as $run) {
+                foreach (drift()->drift($word, 8, new Rng("$word-$level-$run"), $level) as $concept) {
+                    expect($banned)->notToContain(mb_strtolower($concept),
+                        "\"$word\" at level $level returned it");
+                }
+            }
+        }
+    }
+});
+
+/*
+ * Asking for Gentle and being handed the most random thing in the dictionary
+ * is the exact opposite of the setting. A word with few near neighbours used
+ * to fall straight through to the unrelated pool; it now widens the climb
+ * first, so Gentle degrades into Fair rather than into noise.
+ */
+test('gentle stays near the word it was given', function () {
+    $db = new PDO('sqlite:'.dirname(__DIR__).'/data/wordnet.sqlite');
+    $field = $db->prepare(
+        'SELECT s.lex FROM word w JOIN synset s ON s.offset = w.offset WHERE w.lemma = ? AND w.proper = 0 LIMIT 1'
+    );
+
+    foreach (['motor', 'lobster', 'cheese', 'trombone'] as $word) {
+        $field->execute([$word]);
+        $sourceField = (int) $field->fetchColumn();
+
+        $same = 0;
+        $concepts = drift()->drift($word, 8, new Rng($word), 1);
+
+        foreach ($concepts as $concept) {
+            $field->execute([mb_strtolower($concept)]);
+
+            if ((int) $field->fetchColumn() === $sourceField) {
+                $same++;
+            }
+        }
+
+        // Half, not more. A deck asks for eight concepts and a word like
+        // "motor" has about four genuinely near neighbours, after which the
+        // walk widens on purpose rather than failing. The point of this test
+        // is that Gentle does not collapse into noise, which is what it did
+        // before: "ford motors" came back as castor, striker and republican.
+        expect($same >= 4)->toBeTruthy(sprintf(
+            'Gentle on "%s" kept only %d of 8 near the source: %s', $word, $same, implode(', ', $concepts)
+        ));
+    }
 });
 
 test('plurals find their singular', function () {

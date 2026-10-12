@@ -200,7 +200,9 @@ test('every slide has something on it', function () {
 test('a long suggestion is reduced to the word it is about', function () {
     $built = deck()->build('my landlord keeps the heating off because he is cheap', 3);
 
-    expect($built['word'])->toBe('landlord');
+    // One content noun from the sentence, not the whole sentence. Which one
+    // is the scorer's business, and is asserted in DriftTest.
+    expect(['landlord', 'heating'])->toContain($built['word']);
 
     foreach ($built['slides'] as $slide) {
         expect($slide['heading'])->notToContain('keeps the heating off');
