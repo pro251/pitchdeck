@@ -36,7 +36,6 @@ $levels = Drift::LEVELS;
         <input type="range" name="slides" id="slides"
                min="<?= Deck::MIN_SLIDES ?>" max="<?= Deck::MAX_SLIDES ?>" step="1"
                value="<?= Deck::SLIDES ?>">
-        <span class="dial__note" id="slides-note">About a minute on stage</span>
       </label>
 
       <label class="dial">
@@ -102,19 +101,14 @@ var LEVELS = <?= json_encode(array_map(fn ($l) => ['name' => $l['name'], 'blurb'
   var slides = document.getElementById('slides');
   var difficulty = document.getElementById('difficulty');
   var slidesOut = document.getElementById('slides-out');
-  var slidesNote = document.getElementById('slides-note');
   var diffOut = document.getElementById('difficulty-out');
   var diffNote = document.getElementById('difficulty-note');
 
   function draw() {
-    var n = Number(slides.value);
-    slidesOut.textContent = n;
-    // Roughly fifteen seconds a slide, which is what a pitch actually runs to
-    // once the performer is arguing with it rather than reading it.
-    slidesNote.textContent = n <= 4 ? 'Under a minute on stage'
-      : n <= 6 ? 'A minute or so on stage'
-      : n <= 8 ? 'A couple of minutes on stage'
-      : 'Two to three minutes on stage';
+    // No stage-time estimate under this one. It was a guess at seconds per
+    // slide dressed up as a fact, and how long a deck runs is entirely down
+    // to how long the performer wants to argue with each slide.
+    slidesOut.textContent = slides.value;
 
     var level = LEVELS[difficulty.value];
     diffOut.textContent = level.name;
