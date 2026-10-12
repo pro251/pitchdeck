@@ -17,7 +17,7 @@ namespace PitchDeck;
  */
 final class Http
 {
-    private const AGENT = 'PitchDeck/1.0 (https://pitchdeck.251dev.com; improv slide generator)';
+    private const AGENT = 'PowerPointless/1.0 (https://powerpointless.251dev.com; improv slide generator)';
 
     /**
      * How many requests may be in flight at once.

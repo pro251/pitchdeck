@@ -1,5 +1,5 @@
 /*
- * Pitch Deck.
+ * PowerPointless.
  *
  * Built for a projector in the back room of a bar, which sets almost every
  * decision here: type big enough to read from the back, contrast high enough
@@ -440,3 +440,17 @@ input[type="range"]::-moz-range-thumb {
 input[type="range"]::-moz-range-track { background: transparent; }
 
 .said em { font-style: normal; color: var(--muted); opacity: .75; margin-left: .5rem; }
+
+/* ── Synopsis ─────────────────────────────────────────────────────────── */
+
+.synopsis { margin: 1.25rem 0 2.5rem; max-width: 46ch; }
+.synopsis p { margin: 0 0 0.9rem; font-size: 1.12rem; line-height: 1.55; color: #c9cdd6; }
+.synopsis p:first-child { font-size: 1.35rem; color: var(--bone); }
+/* The mechanics, set apart from the description of the game itself. */
+.synopsis__how {
+  font-size: 0.98rem !important;
+  color: var(--muted) !important;
+  border-left: 2px solid var(--line);
+  padding-left: 1rem;
+  margin-top: 1.4rem !important;
+}

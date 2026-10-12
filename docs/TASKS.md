@@ -1,10 +1,10 @@
-# Pitch Deck — build tasks
+# PowerPointless — build tasks
 
 A replacement for `talk-generator` (Thomas Winters, Kory Mathewson, 2018), whose
 hosted version has gone. An audience shouts a word, the site builds a five-slide
 deck, and a performer improvises a pitch having never seen it.
 
-**pitchdeck.251dev.com**
+**powerpointless.251dev.com**
 
 ## What makes it funny, and therefore what must not be "improved"
 
@@ -42,10 +42,10 @@ images are cached on the way past and a small local pool is the last resort.
 
 ## Tasks — all done 2026-10-12
 
-Live at **https://pitchdeck.251dev.com**. 52 tests pass (`php tests/run.php`).
+Live at **https://powerpointless.251dev.com**. 52 tests pass (`php tests/run.php`).
 
 ### 1. Subdomain
-- [x] `sudo scripts/provision-subdomain.sh pitchdeck --type=php` (from the
+- [x] `sudo scripts/provision-subdomain.sh powerpointless --type=php` (from the
       ringleader repo), giving nginx + PHP-FPM + a real certificate.
 
 ### 2. Drift engine, local

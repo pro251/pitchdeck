@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title><?= App::e($deck['suggestion']) ?> — Pitch Deck</title>
+<title><?= App::e($deck['suggestion']) ?> — PowerPointless</title>
 <link rel="stylesheet" href="/app.css">
 </head>
 <body>

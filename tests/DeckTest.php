@@ -55,7 +55,7 @@ function deck(): Deck
     static $deck;
 
     if ($deck === null) {
-        $fixture = sys_get_temp_dir().'/pitchdeck-fixture.jpg';
+        $fixture = sys_get_temp_dir().'/ppl-fixture.jpg';
 
         if (! is_file($fixture)) {
             $canvas = imagecreatetruecolor(640, 360);

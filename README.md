@@ -1,4 +1,4 @@
-# Pitch Deck
+# PowerPointless
 
 An improv game. The audience shouts a word, the site builds five slides, and
 the performer has to sell them having never seen them.
@@ -6,7 +6,7 @@ the performer has to sell them having never seen them.
 A replacement for [talk-generator][tg] by Thomas Winters and Kory Mathewson,
 whose hosted version has gone. This is a fresh implementation, not a fork.
 
-**https://pitchdeck.251dev.com**
+**https://powerpointless.251dev.com**
 
 [tg]: https://github.com/korymath/talk-generator
 

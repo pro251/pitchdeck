@@ -6,7 +6,7 @@ function store(): Store
 {
     // A fresh file per run: these assert ordering and counts, which a shared
     // database would make depend on whatever ran before.
-    $path = sys_get_temp_dir().'/pitchdeck-test-'.getmypid().'.sqlite';
+    $path = sys_get_temp_dir().'/ppl-test-'.getmypid().'.sqlite';
     @unlink($path);
 
     return Store::open($path);
@@ -34,7 +34,7 @@ test('it keeps what is needed to replay a deck, and nothing else', function () {
  * now.
  */
 test('decks stored before the sliders existed still replay', function () {
-    $path = sys_get_temp_dir().'/pitchdeck-old-'.getmypid().'.sqlite';
+    $path = sys_get_temp_dir().'/ppl-old-'.getmypid().'.sqlite';
     @unlink($path);
 
     // The schema exactly as it was, then a row in it.

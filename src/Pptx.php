@@ -422,11 +422,11 @@ final class Pptx
         $fill = '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>';
         $line = '<a:ln w="9525" cap="flat"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln>';
 
-        return $this->xml('<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Pitch Deck">'
-            .'<a:themeElements><a:clrScheme name="Pitch Deck">'.$scheme.'</a:clrScheme>'
-            .'<a:fontScheme name="Pitch Deck"><a:majorFont>'.$fonts.'</a:majorFont>'
+        return $this->xml('<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="PowerPointless">'
+            .'<a:themeElements><a:clrScheme name="PowerPointless">'.$scheme.'</a:clrScheme>'
+            .'<a:fontScheme name="PowerPointless"><a:majorFont>'.$fonts.'</a:majorFont>'
             .'<a:minorFont>'.$fonts.'</a:minorFont></a:fontScheme>'
-            .'<a:fmtScheme name="Pitch Deck">'
+            .'<a:fmtScheme name="PowerPointless">'
             .'<a:fillStyleLst>'.$fill.$fill.$fill.'</a:fillStyleLst>'
             .'<a:lnStyleLst>'.$line.$line.$line.'</a:lnStyleLst>'
             .'<a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle>'

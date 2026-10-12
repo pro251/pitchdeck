@@ -13,7 +13,7 @@ use PitchDeck\Images;
  */
 function images(): Images
 {
-    return new Images(sys_get_temp_dir().'/pitchdeck-test-images');
+    return new Images(sys_get_temp_dir().'/ppl-test-images');
 }
 
 test('it accepts a title that names the thing', function () {

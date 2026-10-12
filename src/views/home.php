@@ -12,13 +12,22 @@ $levels = Drift::LEVELS;
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Pitch Deck</title>
+<title>PowerPointless</title>
 <link rel="stylesheet" href="/app.css">
 </head>
 <body>
 <main class="wrap">
-  <h1 class="brand">Pitch<span>Deck</span></h1>
-  <p class="lede">Someone shouts a word. You get five slides you have never seen, and you have to sell them.</p>
+  <h1 class="brand">Power<span>Pointless</span></h1>
+  <div class="synopsis">
+    <p>Someone in the audience shouts a word.</p>
+    <p>A few seconds later there are slides on the screen behind you &mdash; a title, a chart that rises
+       for no stated reason, a quotation from somebody long dead, photographs of things that are almost
+       but not quite what was shouted. You have not seen them. Nobody has.</p>
+    <p>Then you present them, straight-faced, as though you wrote them.</p>
+    <p class="synopsis__how">The slides are made by walking the dictionary sideways from the word you
+       were given. Ask for a lobster and the deck may be about a wheelbarrow, and explaining why is
+       the act. Set how many slides you want and how far it is allowed to wander.</p>
+  </div>
 
   <form method="post" action="/" id="make">
     <div class="ask">
@@ -123,14 +132,14 @@ var LEVELS = <?= json_encode(array_map(fn ($l) => ['name' => $l['name'], 'blurb'
     // Remembered per browser so the operator is not re-dialling between
     // rounds. Wrapped because a private window throws on access.
     try {
-      localStorage.setItem('pitchdeck.slides', slides.value);
-      localStorage.setItem('pitchdeck.difficulty', difficulty.value);
+      localStorage.setItem('powerpointless.slides', slides.value);
+      localStorage.setItem('powerpointless.difficulty', difficulty.value);
     } catch (e) {}
   }
 
   try {
-    var savedSlides = localStorage.getItem('pitchdeck.slides');
-    var savedDifficulty = localStorage.getItem('pitchdeck.difficulty');
+    var savedSlides = localStorage.getItem('powerpointless.slides');
+    var savedDifficulty = localStorage.getItem('powerpointless.difficulty');
     if (savedSlides) slides.value = savedSlides;
     if (savedDifficulty) difficulty.value = savedDifficulty;
   } catch (e) {}
