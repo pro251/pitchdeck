@@ -12,13 +12,23 @@ whose hosted version has gone. This is a fresh implementation, not a fork.
 
 ## Running it
 
-    php tests/run.php              # 52 tests, about 20 seconds
+From a fresh clone:
+
+    bin/fetch-data.sh              # WordNet 3.1 + the OpenSubtitles word counts
+    php bin/build-wordnet.php      # builds data/wordnet.sqlite, about 7 seconds
+    php -S localhost:8000 -t public
+
+Then:
+
+    php tests/run.php              # 92 tests, about 8 seconds
     php tests/run.php drift        # filter by name
-    php bin/warm-cache.php 60      # fetch 60 more pictures (also on cron, 08:00 UTC)
-    php bin/build-wordnet.php      # rebuild the dictionary from data/dict + data/en_full.txt
 
 No composer, no node, no framework. PHP 8.4 with `pdo_sqlite`, `curl`, `gd`
 and `zip`, all of which were already on the box.
+
+Neither corpus is in git: together they are 36 MB of somebody else's data, and
+the SQLite file built from them is reproducible in seconds. What the
+repository carries is the code that turns one into the other.
 
 ## The one thing to understand before changing anything
 
