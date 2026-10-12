@@ -20,7 +20,12 @@ interface Pictures
 {
     /**
      * @param  array<int, string>  $concepts
+     * @param  Rng|null  $rng  seeds which of several candidate photographs is
+     *                        chosen, so a replayed deck shows the same ones
+     * @param  int|null  $need  stop once this many have been found; the
+     *                          lookups are cheap JSON but the downloads are
+     *                          not, and a deck uses far fewer than it asks for
      * @return array<string, array{file: string, title: string, credit: string, source: string}>
      */
-    public function find(array $concepts): array;
+    public function find(array $concepts, ?Rng $rng = null, ?int $need = null): array;
 }

@@ -22,13 +22,14 @@ final class Http
     /**
      * How many requests may be in flight at once.
      *
-     * Measured on this box: 18 simultaneous handles all succeed, 27 all fail
+     * Measured on this box: 20 simultaneous handles all succeed, 27 all fail
      * together with no response and no curl error -- not a provider refusing,
      * but something local running out of room. The failure mode is the
      * dangerous kind, because it looks exactly like every provider being down
-     * at once. Twelve leaves margin.
+     * at once. Sixteen leaves margin and fits a whole deck's lookups in one
+     * round.
      */
-    private const MAX_PARALLEL = 12;
+    private const MAX_PARALLEL = 16;
 
     /**
      * @param  array<string|int, string>  $urls  keyed however the caller likes

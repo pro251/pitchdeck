@@ -25,13 +25,13 @@ final class Images implements Pictures
     private const MIN_EDGE = 320;
 
     /**
-     * How long a remembered miss stands.
+     * How long a written picture survives on disk.
      *
-     * Long enough that a show never pays twice for the same unillustratable
-     * word, short enough that a provider being down for an afternoon does not
-     * permanently blacklist half the dictionary.
+     * Nothing is reused -- every deck fetches afresh -- but the bytes still
+     * have to exist long enough for the browser to load them and for a .pptx
+     * download to embed them. This is a sweep, not a cache.
      */
-    private const MISS_TTL = 86400 * 3;
+    private const KEEP_SECONDS = 3600;
 
     public function __construct(private string $cacheDir)
     {
@@ -53,73 +53,80 @@ final class Images implements Pictures
      * @param  array<int, string>  $concepts
      * @return array<string, array{file: string, title: string, credit: string, source: string}>
      */
-    public function find(array $concepts): array
+    public function find(array $concepts, ?Rng $rng = null, ?int $need = null): array
     {
-        $found = [];
-        $wanted = [];
+        $this->sweep();
 
-        foreach (array_unique($concepts) as $concept) {
-            $cached = $this->cached($concept);
-
-            if ($cached !== null) {
-                // A remembered miss: no provider could illustrate this, and
-                // asking all three again costs a second of a performer
-                // standing in silence.
-                if ($cached !== []) {
-                    $found[$concept] = $cached;
-                }
-
-                continue;
-            }
-
-            $wanted[] = $concept;
-        }
+        $wanted = array_values(array_unique($concepts));
 
         if ($wanted === []) {
-            return $found;
+            return [];
         }
 
-        /*
-         * Every provider, for every concept, in ONE parallel round.
-         *
-         * Asking them in sequence -- Wikipedia, then Openverse for whatever
-         * it missed, then Commons -- is three round trips plus a download
-         * each, and measured 4.8 seconds. The providers are keyless and the
-         * volume is a few dozen calls a night, so there is nothing to save by
-         * being sparing: ask all three at once, keep whichever answers best,
-         * and spend one round trip instead of six.
-         */
-        $candidates = $this->lookup($wanted);
+        // Look everything up at once: these are small JSON replies and the
+        // answers decide which concepts are worth the expensive part.
+        $candidates = $this->lookup($wanted, $rng);
+        $found = [];
 
-        // Two download rounds: if the preferred candidate turns out to be a
-        // broken file or a 3 KB pronunciation thumbnail, the next provider's
-        // answer gets its turn rather than the concept being lost.
-        for ($round = 0; $round < 2 && $wanted !== []; $round++) {
+        // Downloading is where the seconds go -- a photograph is a few
+        // hundred kilobytes and a lookup is a few hundred bytes. A deck asks
+        // for more concepts than it can use, so stop as soon as enough have
+        // arrived rather than fetching every picture and discarding half.
+        $need ??= count($wanted);
+
+        // Two rounds: if the preferred candidate turns out to be a broken
+        // file or a 3 KB pronunciation thumbnail, the next provider's answer
+        // gets its turn rather than the concept being lost.
+        for ($round = 0; $round < 2 && count($found) < $need; $round++) {
             $attempt = [];
 
             foreach ($wanted as $concept) {
-                if (isset($candidates[$concept][$round])) {
+                if (count($found) + count($attempt) >= $need + 1) {
+                    break;
+                }
+
+                if (! isset($found[$concept]) && isset($candidates[$concept][$round])) {
                     $attempt[$concept] = $candidates[$concept][$round];
                 }
+            }
+
+            if ($attempt === []) {
+                break;
             }
 
             foreach ($this->download($attempt) as $concept => $image) {
                 $found[$concept] = $image;
             }
-
-            $wanted = array_values(array_diff($wanted, array_keys($found)));
         }
 
-        // Remember the failures too, with a timestamp, so the next deck does
-        // not pay for them again.
-        foreach ($wanted as $concept) {
-            file_put_contents($this->metaPath($concept), json_encode([
-                'found' => false,
-                'at' => time(),
-            ]));
+        // Returned in the order they were asked for, so the nearest drift is
+        // still the one the deck reaches for first.
+        $ordered = [];
+
+        foreach ($concepts as $concept) {
+            if (isset($found[$concept])) {
+                $ordered[$concept] = $found[$concept];
+            }
         }
 
-        return $found;
+        return $ordered;
+    }
+
+    /**
+     * Delete pictures older than the keep window.
+     *
+     * Without this the directory grows forever, because nothing ever reads a
+     * file back and so nothing ever decides one is current.
+     */
+    private function sweep(): void
+    {
+        $cutoff = time() - self::KEEP_SECONDS;
+
+        foreach (glob($this->cacheDir.'/*.jpg') ?: [] as $file) {
+            if (filemtime($file) < $cutoff) {
+                @unlink($file);
+            }
+        }
     }
 
     /**
@@ -135,7 +142,7 @@ final class Images implements Pictures
      * @param  array<int, string>  $concepts
      * @return array<string, array<int, array>>
      */
-    private function lookup(array $concepts): array
+    private function lookup(array $concepts, ?Rng $rng): array
     {
         $providers = $this->providers();
         $candidates = [];
@@ -187,8 +194,8 @@ final class Images implements Pictures
                 }
 
                 $hit = $provider === 'openverse'
-                    ? $this->readOpenverse($concept, $body)
-                    : $this->readCommons($concept, $body);
+                    ? $this->readOpenverse($concept, $body, $rng)
+                    : $this->readCommons($concept, $body, $rng);
 
                 if ($hit !== null) {
                     $candidates[$concept][] = $hit;
@@ -259,45 +266,68 @@ final class Images implements Pictures
         return null;
     }
 
-    /** @return array{url: string, title: string, credit: string, source: string}|null */
-    private function readOpenverse(string $concept, array $body): ?array
+    /**
+     * @return array{url: string, title: string, credit: string, source: string}|null
+     */
+    private function readOpenverse(string $concept, array $body, ?Rng $rng): ?array
     {
-        foreach ($body['results'] ?? [] as $result) {
-            if (! $this->relevant($concept, (string) ($result['title'] ?? ''))) {
-                continue;
-            }
+        $usable = [];
 
-            return [
-                'url' => (string) $result['url'],
-                'title' => (string) ($result['title'] ?? $concept),
-                'credit' => trim(($result['creator'] ?? 'Unknown').' / '.strtoupper((string) ($result['license'] ?? 'CC'))),
-                'source' => (string) ($result['foreign_landing_url'] ?? ''),
-            ];
+        foreach ($body['results'] ?? [] as $result) {
+            if ($this->relevant($concept, (string) ($result['title'] ?? ''))) {
+                $usable[] = [
+                    'url' => (string) $result['url'],
+                    'title' => (string) ($result['title'] ?? $concept),
+                    'credit' => trim(($result['creator'] ?? 'Unknown').' / '.strtoupper((string) ($result['license'] ?? 'CC'))),
+                    'source' => (string) ($result['foreign_landing_url'] ?? ''),
+                ];
+            }
         }
 
-        return null;
+        return $this->choose($usable, $rng);
     }
 
-    /** @return array{url: string, title: string, credit: string, source: string}|null */
-    private function readCommons(string $concept, array $body): ?array
+    /**
+     * @return array{url: string, title: string, credit: string, source: string}|null
+     */
+    private function readCommons(string $concept, array $body, ?Rng $rng): ?array
     {
+        $usable = [];
+
         foreach ($body['query']['pages'] ?? [] as $page) {
             $title = (string) preg_replace('/^File:|\.\w+$/', '', (string) ($page['title'] ?? ''));
             $url = $page['imageinfo'][0]['thumburl'] ?? null;
 
-            if (! is_string($url) || ! $this->relevant($concept, $title)) {
-                continue;
+            if (is_string($url) && $this->relevant($concept, $title)) {
+                $usable[] = [
+                    'url' => $url,
+                    'title' => $title,
+                    'credit' => 'Wikimedia Commons',
+                    'source' => (string) ($page['imageinfo'][0]['descriptionurl'] ?? ''),
+                ];
             }
-
-            return [
-                'url' => $url,
-                'title' => $title,
-                'credit' => 'Wikimedia Commons',
-                'source' => (string) ($page['imageinfo'][0]['descriptionurl'] ?? ''),
-            ];
         }
 
-        return null;
+        return $this->choose($usable, $rng);
+    }
+
+    /**
+     * Pick one of several usable photographs.
+     *
+     * Seeded rather than always-the-first, so asking for the same word twice
+     * gives a different picture while replaying a stored deck gives the one
+     * that was actually performed. Without this, removing the cache would
+     * have made regeneration slower and identical.
+     *
+     * @param  array<int, array>  $usable
+     */
+    private function choose(array $usable, ?Rng $rng): ?array
+    {
+        if ($usable === []) {
+            return null;
+        }
+
+        return $rng === null ? $usable[0] : $rng->pick($usable);
     }
 
     /**
@@ -402,7 +432,7 @@ final class Images implements Pictures
             imagejpeg($this->fit($image), $file, 86);
             imagedestroy($image);
 
-            $meta = [
+            $out[$concept] = [
                 'file' => $file,
                 'title' => $hits[$concept]['title'],
                 'credit' => $hits[$concept]['credit'],
@@ -411,9 +441,6 @@ final class Images implements Pictures
                 // take its accent from its own photograph.
                 'tint' => Palette::fromImage($file),
             ];
-
-            file_put_contents($this->metaPath($concept), json_encode($meta, JSON_PRETTY_PRINT));
-            $out[$concept] = $meta;
         }
 
         return $out;
@@ -449,53 +476,4 @@ final class Images implements Pictures
         return $this->cacheDir.'/'.$this->key($concept).'.jpg';
     }
 
-    private function metaPath(string $concept): string
-    {
-        return $this->cacheDir.'/'.$this->key($concept).'.json';
-    }
-
-    /**
-     * What we already know about this concept.
-     *
-     * Three answers, and the third is the point: an array is a cached image,
-     * an empty array is a remembered miss, and null means nobody has asked
-     * yet. Without the middle one, every deck containing one unillustratable
-     * word pays three providers' latency for it again.
-     *
-     * @return array{file: string, title: string, credit: string, source: string}|array{}|null
-     */
-    private function cached(string $concept): ?array
-    {
-        $meta = $this->metaPath($concept);
-
-        if (! is_file($meta)) {
-            return null;
-        }
-
-        $decoded = json_decode((string) file_get_contents($meta), true);
-
-        if (! is_array($decoded)) {
-            return null;
-        }
-
-        if (($decoded['found'] ?? true) === false) {
-            return (time() - (int) ($decoded['at'] ?? 0)) < self::MISS_TTL ? [] : null;
-        }
-
-        $file = $this->path($concept);
-
-        if (! is_file($file) || filesize($file) === 0) {
-            return null;
-        }
-
-        // Pictures cached before tints existed. Sampled once and written
-        // back, rather than on every read: this is a 16x16 rescale, which is
-        // cheap but not free, and a deck does five of them.
-        if (! array_key_exists('tint', $decoded)) {
-            $decoded['tint'] = Palette::fromImage($file);
-            file_put_contents($meta, json_encode([...$decoded, 'file' => $file], JSON_PRETTY_PRINT));
-        }
-
-        return [...$decoded, 'file' => $file];
-    }
 }

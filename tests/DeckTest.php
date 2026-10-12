@@ -4,6 +4,7 @@ use PitchDeck\Deck;
 use PitchDeck\Drift;
 use PitchDeck\Palette;
 use PitchDeck\Pictures;
+use PitchDeck\Rng;
 
 /*
  * A stand-in for the picture providers.
@@ -22,7 +23,7 @@ final class StubImages implements Pictures
 {
     public function __construct(private string $fixture) {}
 
-    public function find(array $concepts): array
+    public function find(array $concepts, ?Rng $rng = null, ?int $need = null): array
     {
         $out = [];
 
@@ -437,4 +438,79 @@ test('the same settings and seed rebuild the same deck', function () {
 
     // And that changing either one actually changes the deck.
     expect(json_encode(deck()->build('cheese', 909, 7, 2)))->notToContain('"difficulty":4');
+});
+
+/*
+ * The deck opens, and very nearly closes, on something plainly about the
+ * suggestion, and wanders in between.
+ *
+ * Brad asked for this and the reason is sound: the room has to believe the
+ * deck is about the word before the performer gets any credit for defending
+ * the parts that are not. Without the bookends a Hostile deck is five
+ * unrelated slides, which is noise rather than a joke.
+ */
+test('the first slide and the last but one stay near the word', function () {
+    foreach ([1, 3, 5] as $level) {
+        foreach ([3, 5, 8] as $count) {
+            $built = deck()->build('lobster', 4242, $count, $level);
+            $slides = $built['slides'];
+
+            expect($slides)->toHaveCount($count);
+            expect($built['anchors'])->toBeTruthy("no anchor set at level $level");
+
+            foreach ([0, $count - 2] as $at) {
+                $concept = $slides[$at]['concept'] ?? null;
+
+                if ($concept === null) {
+                    // The title is sometimes a flat colour with no picture,
+                    // and carries no concept at all.
+                    continue;
+                }
+
+                expect($built['anchors'])->toContain($concept, sprintf(
+                    'slide %d of a %d-slide deck at level %d used "%s", which is not an anchor',
+                    $at + 1, $count, $level, $concept
+                ));
+            }
+        }
+    }
+});
+
+// The anchors must not be the same concepts the middle is using, or the
+// callback lands on something the room has already watched wander off.
+test('the anchor concepts are held back from the middle', function () {
+    foreach ([1, 3, 5] as $level) {
+        $built = deck()->build('cheese', 909, 7, $level);
+        $slides = $built['slides'];
+        $last = count($slides) - 1;
+
+        foreach ($slides as $i => $slide) {
+            $concept = $slide['concept'] ?? null;
+
+            if ($concept === null || $i === 0 || $i === $last - 1 || $i === $last) {
+                continue;
+            }
+
+            expect($built['anchors'])->notToContain($concept, sprintf(
+                'level %d used the anchor "%s" on middle slide %d', $level, $concept, $i + 1
+            ));
+        }
+    }
+});
+
+/*
+ * At the hardest setting the middle should genuinely wander. If the anchors
+ * were simply applied everywhere, the slider would stop meaning anything.
+ */
+test('the middle still drifts at hostile even with the anchors in place', function () {
+    $built = deck()->build('lobster', 4242, 8, 5);
+    $outside = 0;
+
+    foreach (array_slice($built['slides'], 1, -2) as $slide) {
+        if (($slide['concept'] ?? null) !== null && ! in_array($slide['concept'], $built['anchors'], true)) {
+            $outside++;
+        }
+    }
+
+    expect($outside >= 3)->toBeTruthy("only $outside middle slides drifted away from the anchors");
 });

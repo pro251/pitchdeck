@@ -59,8 +59,27 @@ final class Deck
         ['question', 2],
     ];
 
+    /**
+     * How many near concepts to hold back for the anchor slides.
+     *
+     * Three: two anchor slides, plus one spare for when one of them cannot be
+     * illustrated. Asking for more starved the middle -- the anchors are
+     * looked up first, so they were spending the download budget before the
+     * drifted concepts were reached, and two slides ended up showing the same
+     * photograph.
+     */
+    private const ANCHORS = 3;
+
     /** Where each concept goes, so one slide does not reuse the last one's. */
     private int $cursor = 0;
+
+    private int $anchorCursor = 0;
+
+    /** Concepts close to the suggestion, kept for the first and last-but-one. */
+    private array $anchors = [];
+
+    /** Whether the slide being built now is one of those. */
+    private bool $anchored = false;
 
     public function __construct(
         private Drift $drift,
@@ -88,14 +107,43 @@ final class Deck
         $word = $this->drift->seed($suggestion);
         $concepts = $this->drift->drift($word, $slides + self::OVERSHOOT, $rng, $difficulty);
 
+        /*
+         * A second, deliberately near set, whatever the difficulty.
+         *
+         * The deck opens and very nearly closes on something plainly about the
+         * suggestion, and wanders in between. That shape is what makes the
+         * wandering read as a joke rather than as a malfunction -- the room
+         * has to believe the deck is about the word before the performer can
+         * get any credit for defending the parts that are not.
+         */
+        $near = $this->drift->drift($word, self::ANCHORS, $rng, 1);
+
+        // Anything that turned up in both belongs to the anchors: the middle
+        // has plenty and repeating one across the two roles wastes the
+        // callback.
+        $concepts = array_values(array_diff($concepts, $near));
+
         // One call, every concept, in parallel. Concepts no provider can
-        // illustrate simply do not come back.
-        $pictures = $this->images->find($concepts);
+        // illustrate simply do not come back. The Rng decides which of
+        // several candidate photographs is used, so a replay shows the ones
+        // that were performed.
+        // Enough for every slide plus the anchors, so neither can starve the
+        // other. Beyond this the pictures are fetched and thrown away, and
+        // fetching is where the seconds go.
+        $pictures = $this->images->find([...$near, ...$concepts], $rng, $slides + self::ANCHORS);
 
         // Keep the drift order, drop what has no picture: the nearest drift
         // is the most arguably-relevant one and belongs early, where the
         // performer is still establishing that this is a real talk.
         $usable = array_values(array_filter($concepts, fn ($c) => isset($pictures[$c])));
+        $this->anchors = array_values(array_filter($near, fn ($c) => isset($pictures[$c])));
+
+        // Nothing near could be illustrated -- an abstract suggestion, mostly.
+        // The anchor slides then take from the middle rather than being left
+        // without a concept at all.
+        if ($this->anchors === []) {
+            $this->anchors = $usable;
+        }
 
         // A long suggestion is reduced to the word the deck is actually
         // about. "My landlord keeps the heating off" set in 60pt as a title
@@ -111,12 +159,22 @@ final class Deck
         $palette = Palette::pick($rng);
 
         $this->cursor = 0;
+        $this->anchorCursor = 0;
+
+        // The first slide and the last but one are the anchors. The closing is
+        // left alone: it is the sign-off and reads as part of the frame
+        // whatever is on it.
+        $anchorAt = [0, $slides - 2];
+
+        $this->anchored = true;
         $built = [$this->title($inline, $usable, $pictures, $rng)];
 
-        foreach ($this->middleTypes($slides - 2, $rng) as $type) {
+        foreach ($this->middleTypes($slides - 2, $rng) as $i => $type) {
+            $this->anchored = in_array($i + 1, $anchorAt, true);
             $built[] = $this->slide($type, $inline, $usable, $pictures, $rng);
         }
 
+        $this->anchored = false;
         $built[] = $this->closing($inline, $usable, $pictures, $rng);
 
         // Colours are resolved HERE rather than in each renderer, so the
@@ -131,6 +189,7 @@ final class Deck
             'seed' => $seed,
             'word' => $word,
             'palette' => $palette['name'],
+            'anchors' => $this->anchors,
             'difficulty' => $difficulty,
             'difficultyName' => Drift::LEVELS[$difficulty]['name'],
             'concepts' => $usable,
@@ -243,6 +302,7 @@ final class Deck
 
         return [
             'type' => 'title',
+            'concept' => $concept,
             'layout' => $concept === null ? 'flat' : 'photo',
             'heading' => Copy::fill($rng->pick(Copy::TITLES), $suggestion),
             'support' => $rng->pick(Copy::SUBTITLES),
@@ -257,6 +317,7 @@ final class Deck
 
         return [
             'type' => 'statement',
+            'concept' => $concept,
             // Which side the photograph sits on, or the whole slide with the
             // words over it. Without this the game has one picture layout and
             // the deck reads as a template.
@@ -295,6 +356,7 @@ final class Deck
 
         return [
             'type' => 'chart',
+            'concept' => $concept,
             'layout' => $image === null ? 'bars' : $rng->pickWeighted([['bars', 3], ['photo', 2]]),
             'heading' => Copy::fill($rng->pick(Copy::CHARTS), '', $concept),
             'support' => $rng->pick(Copy::SUPPORTS),
@@ -319,6 +381,7 @@ final class Deck
 
         return [
             'type' => 'quote',
+            'concept' => $concept,
             'layout' => $image === null ? 'plain' : $rng->pickWeighted([['photo', 6], ['plain', 1]]),
             'heading' => $gloss !== null
                 ? ucfirst($gloss).'.'
@@ -342,6 +405,7 @@ final class Deck
 
         return [
             'type' => 'big',
+            'concept' => $concept,
             'layout' => ($pictures[$concept] ?? null) === null ? 'plain' : $rng->pickWeighted([['plain', 2], ['photo', 3]]),
             'heading' => $stat,
             'support' => Copy::fill($rng->pick(Copy::STATS), '', $concept),
@@ -359,10 +423,12 @@ final class Deck
             $bullets[] = Copy::fill($line, '', $this->next($usable));
         }
 
-        $image = $pictures[$this->peek($usable)] ?? null;
+        $anchor = $this->peek($usable);
+        $image = $pictures[$anchor] ?? null;
 
         return [
             'type' => 'list',
+            'concept' => $anchor,
             'layout' => $image === null ? 'bullets' : $rng->pickWeighted([['bullets', 3], ['photo', 2]]),
             'image' => $image,
             'heading' => Copy::fill($rng->pick(Copy::LESSON_HEADS), '', $this->peek($usable)),
@@ -377,6 +443,7 @@ final class Deck
 
         return [
             'type' => 'question',
+            'concept' => $concept,
             'layout' => ($pictures[$concept] ?? null) === null ? 'plain' : $rng->pickWeighted([['photo', 4], ['plain', 1]]),
             'heading' => Copy::fill($rng->pick(Copy::QUESTIONS), '', $concept),
             'support' => '',
@@ -386,7 +453,8 @@ final class Deck
 
     private function closing(string $suggestion, array $usable, array $pictures, Rng $rng): array
     {
-        $image = $pictures[$this->peek($usable)] ?? null;
+        $anchor = $this->peek($usable);
+        $image = $pictures[$anchor] ?? null;
         $layout = $rng->pickWeighted([['bullets', 4], ['plain', 2], ...($image ? [['photo', 3]] : [])]);
 
         if ($layout === 'plain') {
@@ -394,6 +462,7 @@ final class Deck
             // difficult to stand next to.
             return [
                 'type' => 'closing',
+                'concept' => null,
                 'layout' => 'plain',
                 'heading' => $rng->pick(Copy::CLOSINGS),
                 'support' => '',
@@ -411,6 +480,7 @@ final class Deck
 
         return [
             'type' => 'closing',
+            'concept' => $layout === 'photo' ? $anchor : null,
             'layout' => $layout,
             'heading' => $rng->pick(Copy::CLOSINGS),
             'support' => '',
@@ -430,8 +500,14 @@ final class Deck
      */
     private function next(array $usable): string
     {
+        // An anchor slide draws from the near set instead, so the deck opens
+        // and nearly closes on something recognisably about the suggestion.
+        if ($this->anchored && $this->anchors !== []) {
+            return $this->anchors[$this->anchorCursor++ % count($this->anchors)];
+        }
+
         if ($usable === []) {
-            return 'opportunity';
+            return $this->anchors[0] ?? 'opportunity';
         }
 
         return $usable[$this->cursor++ % count($usable)];
@@ -440,7 +516,11 @@ final class Deck
     /** The next concept without consuming it. */
     private function peek(array $usable): string
     {
-        return $usable === [] ? 'opportunity' : $usable[$this->cursor % count($usable)];
+        if ($this->anchored && $this->anchors !== []) {
+            return $this->anchors[$this->anchorCursor % count($this->anchors)];
+        }
+
+        return $usable === [] ? ($this->anchors[0] ?? 'opportunity') : $usable[$this->cursor % count($usable)];
     }
 
     private function inline(string $suggestion, string $word): string
