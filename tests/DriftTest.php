@@ -138,3 +138,102 @@ test('a gloss comes back as a sentence, not as dictionary apparatus', function (
 test('an unknown word has no gloss rather than a broken one', function () {
     expect(drift()->gloss('zxqwerty'))->toBe(null);
 });
+
+// ---- difficulty ---------------------------------------------------------
+
+test('every difficulty level is described for the slider', function () {
+    foreach (Drift::LEVELS as $n => $level) {
+        expect($n >= 1 && $n <= 5)->toBeTruthy("level $n is outside the slider's range");
+        expect(trim($level['name']) !== '')->toBeTruthy("level $n has no name");
+        expect(trim($level['blurb']) !== '')->toBeTruthy("level $n has no description");
+        expect($level['strategies'])->toBeTruthy("level $n has nothing to walk with");
+    }
+
+    expect(Drift::LEVELS[Drift::DEFAULT_LEVEL])->toBeTruthy('the default is not a real level');
+});
+
+test('the default level is the behaviour that existed before the slider', function () {
+    // Level 3 was the only setting there was: cousin-weighted, climbing two
+    // to four. Moving the default silently changes every deck.
+    expect(Drift::DEFAULT_LEVEL)->toBe(3);
+    expect(Drift::LEVELS[3]['climb'])->toBe([2, 3]);
+    expect(Drift::LEVELS[3]['strategies'])->toBe([['cousin', 6], ['part', 3], ['substance', 2], ['near', 1]]);
+});
+
+test('every level fills the deck', function () {
+    foreach (array_keys(Drift::LEVELS) as $level) {
+        foreach (['lobster', 'cheese', 'loneliness', 'zxqwerty'] as $word) {
+            $concepts = drift()->drift(drift()->seed($word), 8, new Rng($word), $level);
+
+            expect($concepts)->toHaveCount(8, "level $level, word \"$word\"");
+            expect(array_unique($concepts))->toHaveCount(8, "level $level repeated a concept");
+        }
+    }
+});
+
+/*
+ * The whole premise of the slider: the further the drift from the source, the
+ * harder the deck is to defend.
+ *
+ * Measured by WordNet's own lexical field -- a gentle drift from "lobster"
+ * stays among animals, a hostile one does not. A proxy, but a cheap and
+ * honest one: the alternative is walking the graph to measure true distance,
+ * which costs more than the test is worth.
+ */
+test('easier levels stay nearer the source word', function () {
+    $db = new PDO('sqlite:'.dirname(__DIR__).'/data/wordnet.sqlite');
+    $field = $db->prepare(
+        'SELECT s.lex FROM word w JOIN synset s ON s.offset = w.offset WHERE w.lemma = ? LIMIT 1'
+    );
+
+    $sameFieldAt = function (int $level) use ($field): float {
+        $same = 0;
+        $total = 0;
+
+        foreach (['lobster', 'cheese', 'trombone', 'bus'] as $word) {
+            $field->execute([$word]);
+            $sourceField = (int) $field->fetchColumn();
+
+            foreach (drift()->drift($word, 8, new Rng("$word-$level"), $level) as $concept) {
+                $field->execute([mb_strtolower($concept)]);
+                $total++;
+
+                if ((int) $field->fetchColumn() === $sourceField) {
+                    $same++;
+                }
+            }
+        }
+
+        return $total === 0 ? 0.0 : $same / $total;
+    };
+
+    $gentle = $sameFieldAt(1);
+    $hostile = $sameFieldAt(5);
+
+    expect($gentle > 0.5)->toBeTruthy(sprintf('Gentle kept only %.0f%% in the source field', $gentle * 100));
+    expect($hostile < $gentle - 0.2)->toBeTruthy(sprintf(
+        'Hostile (%.0f%%) is not meaningfully further out than Gentle (%.0f%%)', $hostile * 100, $gentle * 100
+    ));
+});
+
+// A long climb can descend back into the family it came from, and "cheese
+// rind" on a Hostile deck about cheese is the one slide nobody has to work for.
+test('the hard levels do not hand back the word with a hat on', function () {
+    foreach ([4, 5] as $level) {
+        foreach (['cheese', 'lobster', 'bus'] as $word) {
+            foreach (range(1, 6) as $run) {
+                foreach (drift()->drift($word, 8, new Rng("$word-$level-$run"), $level) as $concept) {
+                    expect(str_contains(mb_strtolower($concept), $word))->toBeFalsy(
+                        "level $level on \"$word\" returned \"$concept\""
+                    );
+                }
+            }
+        }
+    }
+});
+
+test('an unknown level falls back to the default rather than failing', function () {
+    foreach ([0, -3, 99] as $bogus) {
+        expect(drift()->drift('lobster', 5, new Rng(1), $bogus))->toHaveCount(5);
+    }
+});

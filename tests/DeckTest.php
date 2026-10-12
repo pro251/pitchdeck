@@ -361,3 +361,78 @@ test('most slides carry a picture', function () {
         round($withPicture / $total * 100).'% of slides had a picture'
     );
 });
+
+// ---- the two sliders ----------------------------------------------------
+
+test('it builds however many slides were asked for', function () {
+    foreach (range(Deck::MIN_SLIDES, Deck::MAX_SLIDES) as $n) {
+        $built = deck()->build('lobster', 4242, $n);
+
+        expect($built['slides'])->toHaveCount($n, "asked for $n");
+
+        $types = array_column($built['slides'], 'type');
+        expect($types[0])->toBe('title', "a $n-slide deck must still open on a title");
+        expect(end($types))->toBe('closing', "a $n-slide deck must still end on a closing");
+    }
+});
+
+/*
+ * There are only six kinds of middle slide, so a ten-slide deck has to start
+ * reusing them. What it must never do is put two of a kind side by side, or
+ * run out and return fewer slides than were asked for.
+ */
+test('a long deck repeats a slide type but never two in a row', function () {
+    foreach (range(1, 20) as $i) {
+        $types = array_column(deck()->build('lobster', $i * 977, Deck::MAX_SLIDES)['slides'], 'type');
+
+        expect($types)->toHaveCount(Deck::MAX_SLIDES);
+
+        for ($n = 1; $n < count($types); $n++) {
+            expect($types[$n] === $types[$n - 1])->toBeFalsy(
+                'two '.$types[$n].' slides in a row at '.$n
+            );
+        }
+    }
+});
+
+test('a slide count outside the slider is clamped, not an error', function () {
+    expect(deck()->build('lobster', 1, 0)['slides'])->toHaveCount(Deck::MIN_SLIDES);
+    expect(deck()->build('lobster', 1, 999)['slides'])->toHaveCount(Deck::MAX_SLIDES);
+    expect(deck()->build('lobster', 1, -5)['slides'])->toHaveCount(Deck::MIN_SLIDES);
+});
+
+test('the deck reports the difficulty it was built at', function () {
+    foreach (array_keys(Drift::LEVELS) as $level) {
+        $built = deck()->build('lobster', 7, 5, $level);
+
+        expect($built['difficulty'])->toBe($level);
+        expect($built['difficultyName'])->toBe(Drift::LEVELS[$level]['name']);
+    }
+});
+
+test('a difficulty outside the slider is clamped, not an error', function () {
+    expect(deck()->build('lobster', 7, 5, 0)['difficulty'])->toBe(1);
+    expect(deck()->build('lobster', 7, 5, 99)['difficulty'])->toBe(count(Drift::LEVELS));
+});
+
+// The defaults are what a deck gets when nobody touches a slider, and they
+// have to stay what the game was before the sliders existed.
+test('the defaults are five slides at the standard drift', function () {
+    $built = deck()->build('lobster', 4242);
+
+    expect($built['slides'])->toHaveCount(5);
+    expect($built['difficulty'])->toBe(Drift::DEFAULT_LEVEL);
+    expect(Deck::SLIDES)->toBe(5);
+});
+
+test('the same settings and seed rebuild the same deck', function () {
+    // This is what makes a previous word replay as it was performed, now that
+    // length and difficulty are part of what a deck is.
+    $a = deck()->build('cheese', 909, 7, 4);
+    $b = deck()->build('cheese', 909, 7, 4);
+
+    expect(json_encode($a))->toBe(json_encode($b));
+
+    // And that changing either one actually changes the deck.
+    expect(json_encode(deck()->build('cheese', 909, 7, 2)))->notToContain('"difficulty":4');
+});

@@ -21,6 +21,17 @@ final class Deck
     public const SLIDES = 5;
 
     /**
+     * What the sliders allow.
+     *
+     * Three is the fewest that still has a beginning, a middle and an end;
+     * past ten the performer is not improvising a pitch any more, they are
+     * reading out a document.
+     */
+    public const MIN_SLIDES = 3;
+
+    public const MAX_SLIDES = 10;
+
+    /**
      * Ask for more concepts than there are slides.
      *
      * Some drifted words cannot be illustrated -- there is no photograph of
@@ -62,14 +73,20 @@ final class Deck
      * @param  string  $suggestion  a word, a phrase or a whole sentence
      * @param  int|null  $seed  pass the stored seed to replay an old deck
      */
-    public function build(string $suggestion, ?int $seed = null): array
-    {
+    public function build(
+        string $suggestion,
+        ?int $seed = null,
+        int $slides = self::SLIDES,
+        int $difficulty = Drift::DEFAULT_LEVEL,
+    ): array {
         $suggestion = trim(preg_replace('/\s+/', ' ', $suggestion) ?? '');
+        $slides = max(self::MIN_SLIDES, min(self::MAX_SLIDES, $slides));
+        $difficulty = max(1, min(count(Drift::LEVELS), $difficulty));
         $seed ??= crc32($suggestion.'|'.random_int(0, PHP_INT_MAX));
         $rng = new Rng($seed);
 
         $word = $this->drift->seed($suggestion);
-        $concepts = $this->drift->drift($word, self::SLIDES + self::OVERSHOOT, $rng);
+        $concepts = $this->drift->drift($word, $slides + self::OVERSHOOT, $rng, $difficulty);
 
         // One call, every concept, in parallel. Concepts no provider can
         // illustrate simply do not come back.
@@ -94,19 +111,19 @@ final class Deck
         $palette = Palette::pick($rng);
 
         $this->cursor = 0;
-        $slides = [$this->title($inline, $usable, $pictures, $rng)];
+        $built = [$this->title($inline, $usable, $pictures, $rng)];
 
-        foreach ($this->middleTypes($rng) as $type) {
-            $slides[] = $this->slide($type, $inline, $usable, $pictures, $rng);
+        foreach ($this->middleTypes($slides - 2, $rng) as $type) {
+            $built[] = $this->slide($type, $inline, $usable, $pictures, $rng);
         }
 
-        $slides[] = $this->closing($inline, $usable, $pictures, $rng);
+        $built[] = $this->closing($inline, $usable, $pictures, $rng);
 
         // Colours are resolved HERE rather than in each renderer, so the
         // browser and the PowerPoint file cannot disagree about what the deck
         // looked like.
-        foreach ($slides as $i => $slide) {
-            $slides[$i] = $this->paint($slide, $palette, $rng);
+        foreach ($built as $i => $slide) {
+            $built[$i] = $this->paint($slide, $palette, $rng);
         }
 
         return [
@@ -114,8 +131,10 @@ final class Deck
             'seed' => $seed,
             'word' => $word,
             'palette' => $palette['name'],
+            'difficulty' => $difficulty,
+            'difficultyName' => Drift::LEVELS[$difficulty]['name'],
             'concepts' => $usable,
-            'slides' => $slides,
+            'slides' => $built,
         ];
     }
 
@@ -177,12 +196,21 @@ final class Deck
      *
      * @return array<int, string>
      */
-    private function middleTypes(Rng $rng): array
+    private function middleTypes(int $count, Rng $rng): array
     {
         $available = self::MIDDLE;
         $chosen = [];
 
-        for ($i = 0; $i < self::SLIDES - 2; $i++) {
+        for ($i = 0; $i < $count; $i++) {
+            // There are only six kinds of middle slide, so a long deck has to
+            // start reusing them. Refilling beats widening the pool with
+            // filler: what it must never do is run out and return fewer
+            // slides than were asked for.
+            if ($available === []) {
+                $last = end($chosen);
+                $available = array_values(array_filter(self::MIDDLE, fn ($t) => $t[0] !== $last));
+            }
+
             $type = $rng->pickWeighted($available);
             $chosen[] = $type;
             $available = array_values(array_filter($available, fn ($t) => $t[0] !== $type));

@@ -23,6 +23,16 @@ final class Store
             seed INTEGER NOT NULL,
             created_at INTEGER NOT NULL
         )');
+
+        // Added after the first decks were stored. A deck is a pure function
+        // of its suggestion, seed, length and difficulty, so a row missing
+        // these would replay as something other than what was performed --
+        // the existing rows predate the sliders and take the defaults.
+        foreach (['slides' => Deck::SLIDES, 'difficulty' => Drift::DEFAULT_LEVEL] as $column => $default) {
+            if (! $this->hasColumn($column)) {
+                $this->db->exec("ALTER TABLE deck ADD COLUMN $column INTEGER NOT NULL DEFAULT $default");
+            }
+        }
         $this->db->exec('CREATE INDEX IF NOT EXISTS idx_deck_created ON deck (created_at DESC)');
     }
 
@@ -41,12 +51,23 @@ final class Store
         return new self($db);
     }
 
-    public function record(string $suggestion, string $word, int $seed): int
+    private function hasColumn(string $name): bool
+    {
+        foreach ($this->db->query('PRAGMA table_info(deck)')->fetchAll() as $column) {
+            if ($column['name'] === $name) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function record(string $suggestion, string $word, int $seed, int $slides, int $difficulty): int
     {
         $q = $this->db->prepare(
-            'INSERT INTO deck (suggestion, word, seed, created_at) VALUES (?, ?, ?, ?)'
+            'INSERT INTO deck (suggestion, word, seed, slides, difficulty, created_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
-        $q->execute([$suggestion, $word, $seed, time()]);
+        $q->execute([$suggestion, $word, $seed, $slides, $difficulty, time()]);
 
         return (int) $this->db->lastInsertId();
     }

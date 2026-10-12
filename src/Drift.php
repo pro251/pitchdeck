@@ -79,6 +79,63 @@ final class Drift
     /** How far past the chosen depth the descent may go hunting specificity. */
     private const EXTRA_HOPS = 6;
 
+    /**
+     * How hard the deck is to defend.
+     *
+     * Difficulty here is distance. A concept one hop from the suggestion is
+     * obviously about it and the performer can simply agree with the slide; a
+     * concept reached by climbing to where lobsters are merely animals and
+     * descending somebody else's branch has to be argued for, and the arguing
+     * is the act.
+     *
+     * So the lever is the CLIMB. Each level says which strategies to use, how
+     * far up to go before coming back down, and -- at the top level only --
+     * what fraction of the deck is drawn from the unrelated-object pool, which
+     * is the farthest anything can be from anything.
+     *
+     * Level 3 is the behaviour this had before the slider existed, and is the
+     * default for that reason.
+     */
+    public const LEVELS = [
+        1 => [
+            'name' => 'Gentle',
+            'blurb' => 'The slides are plainly about the word',
+            'strategies' => [['near', 6], ['part', 4], ['substance', 2], ['cousin', 1]],
+            'climb' => [0, 2],
+            'pool' => 0.0,
+        ],
+        2 => [
+            'name' => 'Fair',
+            'blurb' => 'Close relatives, nothing wild',
+            'strategies' => [['near', 4], ['part', 4], ['substance', 3], ['cousin', 3]],
+            'climb' => [1, 2],
+            'pool' => 0.0,
+        ],
+        3 => [
+            'name' => 'Standard',
+            'blurb' => 'Arguably related. You will have to do some work',
+            'strategies' => [['cousin', 6], ['part', 3], ['substance', 2], ['near', 1]],
+            'climb' => [2, 3],
+            'pool' => 0.0,
+        ],
+        4 => [
+            'name' => 'Hard',
+            'blurb' => 'Distant cousins. Good luck',
+            'strategies' => [['cousin', 9], ['part', 1], ['substance', 1]],
+            'climb' => [4, 3],
+            'pool' => 0.0,
+        ],
+        5 => [
+            'name' => 'Hostile',
+            'blurb' => 'Some slides have nothing to do with it at all',
+            'strategies' => [['cousin', 8], ['part', 1]],
+            'climb' => [6, 4],
+            'pool' => 0.4,
+        ],
+    ];
+
+    public const DEFAULT_LEVEL = 3;
+
     public function __construct(private PDO $db) {}
 
     public static function open(string $path): self
@@ -253,8 +310,9 @@ final class Drift
      *
      * @return array<int, string> distinct concepts
      */
-    public function drift(string $word, int $count, Rng $rng): array
+    public function drift(string $word, int $count, Rng $rng, int $level = self::DEFAULT_LEVEL): array
     {
+        $level = self::LEVELS[$level] ?? self::LEVELS[self::DEFAULT_LEVEL];
         $start = $this->offsets($word);
 
         if ($start === []) {
@@ -267,10 +325,21 @@ final class Drift
         $found = [];
         $seen = [mb_strtolower($word) => true];
 
-        // Weighted toward cousins, which carry the joke. Parts and substances
-        // are funny differently -- a slide about what a lobster is made of --
-        // and a near miss is occasionally the best title of the five.
-        $strategies = [['cousin', 6], ['part', 3], ['substance', 2], ['near', 1]];
+        // At the hardest level part of the deck is simply unrelated. Taken
+        // first so the walk below does not have to fill those places.
+        $fromPool = (int) round($count * $level['pool']);
+
+        foreach ($this->fromPool($fromPool, $seen, $rng) as $unrelated) {
+            $seen[mb_strtolower($unrelated)] = true;
+            $found[] = $unrelated;
+        }
+
+        // Weighted toward cousins at the usual setting, because those carry
+        // the joke. Parts and substances are funny differently -- a slide
+        // about what a lobster is made of -- and a near miss is the easiest
+        // thing in the deck to defend, which is why the gentle levels lean on
+        // it.
+        $strategies = $level['strategies'];
         $attempts = 0;
 
         while (count($found) < $count && $attempts < $count * self::BUDGET) {
@@ -278,7 +347,7 @@ final class Drift
 
             $at = $rng->pick($start)['offset'];
             $landed = match ($rng->pickWeighted($strategies)) {
-                'cousin' => $this->cousin($at, $rng),
+                'cousin' => $this->cousin($at, $rng, $level['climb']),
                 'part' => $this->along($at, ['part_of', 'has_part', 'member_of', 'has_member'], $rng),
                 'substance' => $this->along($at, ['made_of', 'substance_of'], $rng),
                 default => $this->along($at, ['hyponym'], $rng),
@@ -299,6 +368,15 @@ final class Drift
             foreach ($this->wordsAt($landed, $rng) as $candidate) {
                 $key = mb_strtolower($candidate);
 
+                // At the hard settings, reject anything that still has the
+                // suggestion written on it. A long climb can descend back
+                // into the family it came from, and "cheese rind" on a
+                // Hostile deck about cheese is the one slide the performer
+                // does not have to work for.
+                if ($level['climb'][0] >= 4 && $this->related($key, $word)) {
+                    continue;
+                }
+
                 if (! isset($seen[$key])) {
                     $seen[$key] = true;
                     $found[] = $candidate;
@@ -314,7 +392,12 @@ final class Drift
         // showing a wheelbarrow under the heading "loneliness" is the joke
         // working, and one showing the word "indifference" is the joke
         // failing.
-        return [...$found, ...$this->fromPool($count - count($found), $seen, $rng)];
+        $concepts = [...$found, ...$this->fromPool($count - count($found), $seen, $rng)];
+
+        // At the hardest level the unrelated ones were taken first and so
+        // landed on the opening slides, which gives the game away: the deck
+        // starts nowhere near the word and then settles down. Spread them.
+        return $level['pool'] > 0 ? $rng->shuffled($concepts) : $concepts;
     }
 
     /**
@@ -355,11 +438,14 @@ final class Drift
      * start leaves you on a category -- "a kind of mollusc" -- and a category
      * has no photograph. Going deeper lands on one specific object.
      */
-    private function cousin(string $offset, Rng $rng): ?string
+    private function cousin(string $offset, Rng $rng, array $climb): ?string
     {
         $at = $offset;
 
-        for ($i = 0, $levels = 2 + $rng->below(3); $i < $levels; $i++) {
+        // How far up before coming back down. This is the difficulty dial:
+        // one level up lands on a sibling the room can see the link to, five
+        // lands on something the performer has to talk their way into.
+        for ($i = 0, $levels = $climb[0] + $rng->below($climb[1]); $i < $levels; $i++) {
             $up = $this->neighbours($at, ['hypernym']);
 
             if ($up === []) {
@@ -370,7 +456,10 @@ final class Drift
         }
 
         $climbed = $at;
-        $levels = 3 + $rng->below(4);
+
+        // Descend further than the climb, so the walk ends on one specific
+        // object rather than on the category it passed through.
+        $levels = $climbed === $offset ? 1 + $rng->below(2) : 3 + $rng->below(4);
 
         // Descend the chosen number of levels, then keep going while the node
         // is still a heading. Without the second condition the walk stops
@@ -396,8 +485,10 @@ final class Drift
             $at = $rng->pickWeighted(array_map(fn ($e) => [$e['dst'], $this->appeal($e)], $down));
         }
 
-        // Never came back down -- that is a category, not a cousin.
-        return $at === $climbed ? null : $at;
+        // Never came back down -- that is a category, not a cousin. A climb
+        // of zero is allowed to stay put, which is what makes the gentle
+        // levels gentle: it becomes an ordinary step sideways.
+        return $at === $climbed && $climbed !== $offset ? null : $at;
     }
 
     /** One hop along specific relations. */
@@ -418,6 +509,14 @@ final class Drift
         $q->execute([$offset]);
 
         return (int) $q->fetchColumn();
+    }
+
+    /** Does this concept still wear the suggestion's name? */
+    private function related(string $candidate, string $word): bool
+    {
+        $word = mb_strtolower($word);
+
+        return $word !== '' && (str_contains($candidate, $word) || str_contains($word, $candidate));
     }
 
     /** Is there anything here a camera could point at? */

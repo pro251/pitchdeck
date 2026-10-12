@@ -100,7 +100,9 @@
       <button type="button" id="next" aria-label="Next slide">&rarr;</button>
     </div>
     <span class="counter" id="counter" aria-live="polite">1 / <?= count($deck['slides']) ?></span>
-    <span class="said">They said <b><?= App::e($deck['suggestion']) ?></b></span>
+    <span class="said">They said <b><?= App::e($deck['suggestion']) ?></b>
+      <em><?= count($deck['slides']) ?> slides · <?= App::e($deck['difficultyName']) ?></em>
+    </span>
     <div class="actions">
       <a class="btn btn--quiet" href="/d/<?= (int) $id ?>.pptx">Download .pptx</a>
       <a class="btn" href="/">New word</a>

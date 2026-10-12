@@ -65,6 +65,12 @@ final class App
         ]);
     }
 
+    /** Difficulty levels, for the slider's labels. */
+    public static function levels(): array
+    {
+        return Drift::LEVELS;
+    }
+
     private function create(): void
     {
         $suggestion = trim((string) ($_POST['suggestion'] ?? ''));
@@ -79,10 +85,19 @@ final class App
             return;
         }
 
+        // Clamped rather than validated. These arrive from two range inputs,
+        // so anything outside the range is a tampered-with form or an old
+        // bookmark, and neither is worth an error page in the middle of a
+        // show.
+        $slides = max(Deck::MIN_SLIDES, min(Deck::MAX_SLIDES, (int) ($_POST['slides'] ?? Deck::SLIDES)));
+        $difficulty = max(1, min(count(Drift::LEVELS), (int) ($_POST['difficulty'] ?? Drift::DEFAULT_LEVEL)));
+
         // Long input is accepted rather than rejected -- somebody will type a
         // paragraph and the deck should be built from it, not refused.
-        $built = $this->deck->build(mb_substr($suggestion, 0, 300));
-        $id = $this->store->record($built['suggestion'], $built['word'], $built['seed']);
+        $built = $this->deck->build(mb_substr($suggestion, 0, 300), null, $slides, $difficulty);
+        $id = $this->store->record(
+            $built['suggestion'], $built['word'], $built['seed'], $slides, $difficulty
+        );
 
         // 303 so a refresh of the slideshow does not build a second deck.
         header('Location: /d/'.$id, true, 303);
@@ -139,7 +154,12 @@ final class App
      */
     private function rebuild(array $row): array
     {
-        return $this->deck->build($row['suggestion'], (int) $row['seed']);
+        return $this->deck->build(
+            $row['suggestion'],
+            (int) $row['seed'],
+            (int) ($row['slides'] ?? Deck::SLIDES),
+            (int) ($row['difficulty'] ?? Drift::DEFAULT_LEVEL),
+        );
     }
 
     private function image(string $key): void

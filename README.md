@@ -59,6 +59,40 @@ app and nothing semantic goes over the wire.
 4. **Assemble** — five slides from templates in `Copy.php`. No language model,
    same as the original.
 
+## The two dials
+
+**Slides, 3 to 10, default 5.** Three is the fewest that still has a
+beginning, a middle and an end; past ten the performer is reading out a
+document rather than improvising. There are only six kinds of middle slide, so
+a long deck reuses them -- never two of a kind in a row.
+
+**Difficulty, five levels, default 3 (Standard).** Difficulty is distance. A
+concept one hop from the suggestion is obviously about it and the performer
+can simply agree with the slide; one reached by climbing to where lobsters are
+merely animals has to be argued for, and the arguing is the act. The lever is
+therefore the CLIMB in `Drift::LEVELS`, plus -- at Hostile only -- a fraction
+of the deck drawn from the unrelated-object pool.
+
+From "lobster":
+
+| | |
+|---|---|
+| 1 Gentle | true lobster, norway lobster, lobster tail, rock lobster |
+| 2 Fair | periwinkle, northern lobster, squid, crayfish |
+| 3 Standard | rock barnacle, ribbon worm, flint glass, sea gooseberry |
+| 4 Hard | leviathan, sea cradle, woodworm, icicle |
+| 5 Hostile | mirror, banquet, mascot, growler |
+
+**Level 3 is exactly what the engine did before the sliders existed**, which
+is why it is the default, and there is a test asserting its weights so that
+moving it cannot happen quietly. The hard levels also reject anything still
+wearing the suggestion's name -- a long climb can descend back into the family
+it came from, and "cheese rind" on a Hostile deck about cheese is the one
+slide nobody has to work for.
+
+Both are stored per deck, so a previous word replays as it was performed. Rows
+written before the sliders existed take the defaults.
+
 ## The design drifts too
 
 Everything drifted except the colours, and every deck came out the same dark

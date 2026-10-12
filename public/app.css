@@ -51,7 +51,10 @@ a { color: inherit; }
   max-width: 34ch;
 }
 
-form { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+/* The form is a plain block: .ask and .dials each lay themselves out, and
+   leaving the old flex rule here made them siblings competing for one row,
+   which pushed the button onto its own line with 300px to spare. */
+form { display: block; }
 
 input[type="text"] {
   flex: 1 1 22rem;
@@ -363,3 +366,77 @@ button:disabled { opacity: 0.5; cursor: default; }
      rather than as a frozen page. */
   .building__slides i { animation: none; background-position: left; }
 }
+
+/* ── The two dials ────────────────────────────────────────────────────── */
+
+.ask { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+
+.dials {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.75rem 2.5rem;
+  margin-top: 1.75rem;
+}
+
+.dial { display: block; }
+
+.dial__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.7rem;
+}
+.dial__head output {
+  font-size: 1.05rem;
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 700;
+  color: var(--bone);
+  font-variant-numeric: tabular-nums;
+}
+
+.dial__note {
+  display: block;
+  margin-top: 0.6rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+  /* Reserved, so the layout does not jump as the label changes length. */
+  min-height: 1.35em;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 0.4rem;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--signal) var(--pct, 50%), var(--line) var(--pct, 50%));
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  background: var(--bone);
+  border: 3px solid var(--signal);
+  cursor: grab;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 1.3rem;
+  height: 1.3rem;
+  border: 3px solid var(--signal);
+  border-radius: 50%;
+  background: var(--bone);
+  cursor: grab;
+}
+input[type="range"]::-moz-range-track { background: transparent; }
+
+.said em { font-style: normal; color: var(--muted); opacity: .75; margin-left: .5rem; }

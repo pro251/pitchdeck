@@ -1,4 +1,11 @@
-<?php use PitchDeck\App; ?>
+<?php
+
+use PitchDeck\App;
+use PitchDeck\Deck;
+use PitchDeck\Drift;
+
+$levels = Drift::LEVELS;
+?>
 <!doctype html>
 <html lang="en">
 <head>
@@ -14,9 +21,34 @@
   <p class="lede">Someone shouts a word. You get five slides you have never seen, and you have to sell them.</p>
 
   <form method="post" action="/" id="make">
-    <input type="text" name="suggestion" placeholder="lobster" autofocus autocomplete="off"
-           aria-label="A word, a phrase or a whole sentence" maxlength="300">
-    <button type="submit">Make the deck</button>
+    <div class="ask">
+      <input type="text" name="suggestion" placeholder="lobster" autofocus autocomplete="off"
+             aria-label="A word, a phrase or a whole sentence" maxlength="300">
+      <button type="submit">Make the deck</button>
+    </div>
+
+    <div class="dials">
+      <label class="dial">
+        <span class="dial__head">
+          Slides
+          <output id="slides-out" for="slides"><?= Deck::SLIDES ?></output>
+        </span>
+        <input type="range" name="slides" id="slides"
+               min="<?= Deck::MIN_SLIDES ?>" max="<?= Deck::MAX_SLIDES ?>" step="1"
+               value="<?= Deck::SLIDES ?>">
+        <span class="dial__note" id="slides-note">About a minute on stage</span>
+      </label>
+
+      <label class="dial">
+        <span class="dial__head">
+          Difficulty
+          <output id="difficulty-out" for="difficulty"><?= App::e($levels[Drift::DEFAULT_LEVEL]['name']) ?></output>
+        </span>
+        <input type="range" name="difficulty" id="difficulty"
+               min="1" max="<?= count($levels) ?>" step="1" value="<?= Drift::DEFAULT_LEVEL ?>">
+        <span class="dial__note" id="difficulty-note"><?= App::e($levels[Drift::DEFAULT_LEVEL]['blurb']) ?></span>
+      </label>
+    </div>
   </form>
   <?php if (! empty($error)): ?>
     <p class="error"><?= App::e($error) ?></p>
@@ -57,6 +89,63 @@
 </div>
 
 <script>
+/*
+ * Difficulty is distance. A concept one hop from the suggestion is obviously
+ * about it and the performer can just agree with the slide; one reached by
+ * climbing to where lobsters are merely animals has to be argued for, and the
+ * arguing is the act. The blurbs come from the engine so the two cannot drift
+ * apart.
+ */
+var LEVELS = <?= json_encode(array_map(fn ($l) => ['name' => $l['name'], 'blurb' => $l['blurb']], $levels)) ?>;
+
+(function () {
+  var slides = document.getElementById('slides');
+  var difficulty = document.getElementById('difficulty');
+  var slidesOut = document.getElementById('slides-out');
+  var slidesNote = document.getElementById('slides-note');
+  var diffOut = document.getElementById('difficulty-out');
+  var diffNote = document.getElementById('difficulty-note');
+
+  function draw() {
+    var n = Number(slides.value);
+    slidesOut.textContent = n;
+    // Roughly fifteen seconds a slide, which is what a pitch actually runs to
+    // once the performer is arguing with it rather than reading it.
+    slidesNote.textContent = n <= 4 ? 'Under a minute on stage'
+      : n <= 6 ? 'A minute or so on stage'
+      : n <= 8 ? 'A couple of minutes on stage'
+      : 'Two to three minutes on stage';
+
+    var level = LEVELS[difficulty.value];
+    diffOut.textContent = level.name;
+    diffNote.textContent = level.blurb;
+
+    // Fill the track up to the thumb, which range inputs cannot do themselves.
+    [slides, difficulty].forEach(function (el) {
+      var pct = (el.value - el.min) / (el.max - el.min) * 100;
+      el.style.setProperty('--pct', pct + '%');
+    });
+
+    // Remembered per browser so the operator is not re-dialling between
+    // rounds. Wrapped because a private window throws on access.
+    try {
+      localStorage.setItem('pitchdeck.slides', slides.value);
+      localStorage.setItem('pitchdeck.difficulty', difficulty.value);
+    } catch (e) {}
+  }
+
+  try {
+    var savedSlides = localStorage.getItem('pitchdeck.slides');
+    var savedDifficulty = localStorage.getItem('pitchdeck.difficulty');
+    if (savedSlides) slides.value = savedSlides;
+    if (savedDifficulty) difficulty.value = savedDifficulty;
+  } catch (e) {}
+
+  slides.addEventListener('input', draw);
+  difficulty.addEventListener('input', draw);
+  draw();
+})();
+
 (function () {
   var form = document.getElementById('make');
   var panel = document.getElementById('building');
