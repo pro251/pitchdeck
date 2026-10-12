@@ -76,18 +76,32 @@ final class Pptx
 
     private function slide(array $slide, bool $hasImage): string
     {
-        $shapes = match ($slide['type']) {
+        $layout = $slide['layout'] ?? 'plain';
+
+        // On these the photograph is the background and the words sit over
+        // it, so it is drawn first and a scrim goes between.
+        $behind = $hasImage && in_array($layout, ['photo', 'overlay'], true);
+
+        $shapes = '';
+
+        if ($behind) {
+            $shapes .= $this->picture(4, 0, 0, self::W, self::H).$this->scrim(5);
+        }
+
+        $shapes .= match ($slide['type']) {
             'title' => $this->titleShapes($slide),
             'chart' => $this->chartShapes($slide),
-            'quote' => $this->quoteShapes($slide, $hasImage),
-            'closing' => $this->closingShapes($slide),
-            default => $this->statementShapes($slide, $hasImage),
+            'quote' => $this->quoteShapes($slide),
+            'big' => $this->bigShapes($slide),
+            'question' => $this->questionShapes($slide),
+            'list', 'closing' => $this->listShapes($slide),
+            default => $this->statementShapes($slide, $hasImage && ! $behind, $layout),
         };
 
         return $this->xml('<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
             .'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
             .'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'
-            .'<p:cSld>'.$this->background($slide['type']).'<p:spTree>'
+            .'<p:cSld>'.$this->background($slide, $behind).'<p:spTree>'
             .'<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>'
             .'<p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/>'
             .'<a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>'
@@ -95,62 +109,99 @@ final class Pptx
             .'</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>');
     }
 
-    private function background(string $type): string
+    private function background(array $slide, bool $behind): string
     {
-        // The title and closing slides carry the accent; the rest stay dark so
-        // a projected photograph is the brightest thing in the room.
-        $fill = $type === 'title' || $type === 'closing' ? 'C8452F' : '15161A';
+        // A slide with a photograph across it paints no colour -- the picture
+        // is the first shape in the tree and covers the whole frame anyway.
+        if ($behind) {
+            return '';
+        }
 
-        return '<p:bg><p:bgPr><a:solidFill><a:srgbClr val="'.$fill.'"/></a:solidFill>'
+        // Resolved by the Deck from its palette, so the file matches what was
+        // on the screen.
+        return '<p:bg><p:bgPr><a:solidFill><a:srgbClr val="'.$slide['bg'].'"/></a:solidFill>'
             .'<a:effectLst/></p:bgPr></p:bg>';
     }
 
     private function titleShapes(array $slide): string
     {
         return $this->textBox(2, self::MARGIN, 2200000, self::W - self::MARGIN * 2, 2400000,
-            $slide['heading'], 5400, 'FFFFFF', bold: true)
+            $slide['heading'], 5400, $slide['ink'], bold: true)
             .$this->textBox(3, self::MARGIN, 4800000, self::W - self::MARGIN * 2, 700000,
-                mb_strtoupper($slide['support']), 1400, 'F6D9D1', spacing: 300);
+                mb_strtoupper($slide['support']), 1400, $slide['muted'], spacing: 300);
     }
 
-    private function statementShapes(array $slide, bool $hasImage): string
+    private function statementShapes(array $slide, bool $beside, string $layout): string
     {
-        // Text left, photograph right. The picture has to be big: it is the
-        // thing the performer is arguing with.
-        $textWidth = $hasImage ? 5000000 : self::W - self::MARGIN * 2;
-        $shapes = $this->textBox(2, self::MARGIN, 1700000, $textWidth, 2600000,
-            $slide['heading'], 3600, 'FFFFFF', bold: true)
-            .$this->textBox(3, self::MARGIN, 4500000, $textWidth, 900000,
-                $slide['support'], 1600, 'A8ACBA');
+        // Text one side, photograph the other -- or, with no picture beside
+        // it, the full width.
+        $textWidth = $beside ? 5000000 : self::W - self::MARGIN * 2;
+        $left = $beside && $layout === 'left' ? 6400000 : self::MARGIN;
 
-        if ($hasImage) {
-            $shapes .= $this->picture(4, 6400000, 1100000, 4950000, 4650000);
+        $shapes = $this->textBox(2, $left, 1700000, $textWidth, 2600000,
+            $slide['heading'], 3600, $slide['ink'], bold: true)
+            .$this->textBox(3, $left, 4500000, $textWidth, 900000,
+                $slide['support'], 1600, $slide['muted']);
+
+        if ($beside) {
+            $x = $layout === 'left' ? self::MARGIN : 6400000;
+            $shapes .= $this->picture(4, $x, 1100000, 4950000, 4650000);
         }
 
         return $shapes;
     }
 
-    private function quoteShapes(array $slide, bool $hasImage): string
+    private function quoteShapes(array $slide): string
     {
-        $shapes = '';
+        return $this->textBox(2, self::MARGIN * 2, 1900000, self::W - self::MARGIN * 4, 2600000,
+            "\u{201C}".$slide['heading']."\u{201D}", 3200, $slide['ink'], bold: true, align: 'ctr')
+            .$this->textBox(3, self::MARGIN * 2, 4700000, self::W - self::MARGIN * 4, 700000,
+                "\u{2014} ".$slide['support'], 1800, $slide['accent'], align: 'ctr');
+    }
 
-        if ($hasImage) {
-            // Full bleed, with the quote laid over it.
-            $shapes .= $this->picture(4, 0, 0, self::W, self::H);
-            $shapes .= $this->scrim(5);
+    /** One enormous figure, which is how a real deck hides a weak argument. */
+    private function bigShapes(array $slide): string
+    {
+        return $this->textBox(2, self::MARGIN, 1100000, self::W - self::MARGIN * 2, 600000,
+            mb_strtoupper($slide['kicker'] ?? ''), 1400, $slide['muted'], align: 'ctr', spacing: 300)
+            .$this->textBox(3, self::MARGIN, 1900000, self::W - self::MARGIN * 2, 2900000,
+                $slide['heading'], 16000, $slide['accent'], bold: true, align: 'ctr')
+            .$this->textBox(4, self::MARGIN * 2, 5100000, self::W - self::MARGIN * 4, 900000,
+                $slide['support'], 2000, $slide['ink'], align: 'ctr');
+    }
+
+    private function questionShapes(array $slide): string
+    {
+        return $this->textBox(2, self::MARGIN, 2000000, self::W - self::MARGIN * 2, 3200000,
+            $slide['heading'], 5000, $slide['ink'], bold: true, align: 'ctr');
+    }
+
+    /** The mid-deck lessons and the closing asks are the same shape. */
+    private function listShapes(array $slide): string
+    {
+        $bullets = $slide['bullets'] ?? [];
+
+        $shapes = $this->textBox(2, self::MARGIN, $bullets === [] ? 2800000 : 1100000,
+            self::W - self::MARGIN * 2, 1400000,
+            $slide['heading'], $bullets === [] ? 5400 : 3800, $slide['ink'], bold: true,
+            align: $bullets === [] ? 'ctr' : 'l');
+
+        $y = 2900000;
+        $id = 10;
+
+        foreach ($bullets as $bullet) {
+            $shapes .= $this->textBox($id++, self::MARGIN, $y, self::W - self::MARGIN * 2, 700000,
+                "\u{2022}   ".$bullet, 2000, $slide['ink']);
+            $y += 800000;
         }
 
-        return $shapes
-            .$this->textBox(2, self::MARGIN * 2, 1900000, self::W - self::MARGIN * 4, 2600000,
-                '“'.$slide['heading'].'”', 3200, 'FFFFFF', bold: true, align: 'ctr')
-            .$this->textBox(3, self::MARGIN * 2, 4700000, self::W - self::MARGIN * 4, 700000,
-                '— '.$slide['support'], 1800, 'E8C9BE', align: 'ctr');
+        return $shapes;
     }
 
     private function chartShapes(array $slide): string
     {
         $shapes = $this->textBox(2, self::MARGIN, 700000, self::W - self::MARGIN * 2, 1000000,
-            $slide['heading'], 3200, 'FFFFFF', bold: true);
+            $slide['heading'], 3200, $slide['ink'], bold: true);
 
         $bars = $slide['bars'];
         $max = max(array_column($bars, 'value')) ?: 1;
@@ -165,27 +216,11 @@ final class Pptx
             $x = (int) (self::MARGIN + $slot * $i + ($slot - $barWidth) / 2);
             $y = $plotTop + $plotHeight - $height;
 
-            $shapes .= $this->rect($id++, $x, $y, $barWidth, $height, 'C8452F');
+            $shapes .= $this->rect($id++, $x, $y, $barWidth, $height, $slide['accent']);
             $shapes .= $this->textBox($id++, $x - 100000, $y - 500000, $barWidth + 200000, 450000,
-                (string) $bar['value'], 1400, 'FFFFFF', bold: true, align: 'ctr');
+                (string) $bar['value'], 1400, $slide['ink'], bold: true, align: 'ctr');
             $shapes .= $this->textBox($id++, $x - 100000, $plotTop + $plotHeight + 90000,
-                $barWidth + 200000, 450000, $bar['label'], 1200, 'A8ACBA', align: 'ctr');
-        }
-
-        return $shapes;
-    }
-
-    private function closingShapes(array $slide): string
-    {
-        $shapes = $this->textBox(2, self::MARGIN, 1200000, self::W - self::MARGIN * 2, 1400000,
-            $slide['heading'], 4400, 'FFFFFF', bold: true);
-        $y = 3100000;
-        $id = 10;
-
-        foreach ($slide['bullets'] as $bullet) {
-            $shapes .= $this->textBox($id++, self::MARGIN, $y, self::W - self::MARGIN * 2, 700000,
-                '•   '.$bullet, 2000, 'FBE7E1');
-            $y += 800000;
+                $barWidth + 200000, 450000, $bar['label'], 1200, $slide['muted'], align: 'ctr');
         }
 
         return $shapes;

@@ -13,7 +13,7 @@
   <h1 class="brand">Pitch<span>Deck</span></h1>
   <p class="lede">Someone shouts a word. You get five slides you have never seen, and you have to sell them.</p>
 
-  <form method="post" action="/">
+  <form method="post" action="/" id="make">
     <input type="text" name="suggestion" placeholder="lobster" autofocus autocomplete="off"
            aria-label="A word, a phrase or a whole sentence" maxlength="300">
     <button type="submit">Make the deck</button>
@@ -35,5 +35,88 @@
     <?php endif ?>
   </section>
 </main>
+
+<!--
+  Building a deck means a drift walk and, for any word not already cached, a
+  round of image lookups over somebody's wifi. That is a quarter of a second
+  warm and several seconds cold, and in between the page just sits there --
+  so the person at the laptop presses the button again, and the audience
+  watches them press it again.
+
+  The bar fills by slide rather than spinning, because that is the thing being
+  waited for.
+-->
+<div class="building" id="building" hidden aria-live="polite">
+  <div class="building__inner">
+    <div class="building__slides" aria-hidden="true">
+      <i></i><i></i><i></i><i></i><i></i>
+    </div>
+    <p class="building__word" id="building-word"></p>
+    <p class="building__step" id="building-step">Looking it up</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  var form = document.getElementById('make');
+  var panel = document.getElementById('building');
+  var stepEl = document.getElementById('building-step');
+  var wordEl = document.getElementById('building-word');
+  var input = form.querySelector('input');
+
+  // The real stages, in the order they actually happen, so the line on screen
+  // is a description rather than decoration.
+  var steps = [
+    'Looking it up',
+    'Wandering off the point',
+    'Looking for photographs',
+    'Writing something confident',
+    'Setting the slides'
+  ];
+  var timer;
+
+  function start(label) {
+    if (panel.hidden === false) return;
+
+    wordEl.textContent = label ? '“' + label + '”' : '';
+    panel.hidden = false;
+    document.body.classList.add('is-building');
+
+    // Disabling the control is the part that stops a second submit; the
+    // panel on top of it is what stops the person wondering whether the
+    // first one worked.
+    input.readOnly = true;
+    form.querySelector('button').disabled = true;
+
+    var at = 0;
+    timer = setInterval(function () {
+      at = Math.min(at + 1, steps.length - 1);
+      stepEl.textContent = steps[at];
+    }, 1100);
+  }
+
+  form.addEventListener('submit', function (e) {
+    if (input.value.trim() === '') return;
+    start(input.value.trim());
+  });
+
+  // A previous word rebuilds its deck from the seed, which is the same work.
+  document.querySelectorAll('.chips a').forEach(function (link) {
+    link.addEventListener('click', function () { start(link.textContent.trim()); });
+  });
+
+  // Coming back via the back button must not leave the panel up over a page
+  // that is finished with it.
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted) {
+      clearInterval(timer);
+      panel.hidden = true;
+      document.body.classList.remove('is-building');
+      input.readOnly = false;
+      form.querySelector('button').disabled = false;
+    }
+  });
+})();
+</script>
 </body>
 </html>

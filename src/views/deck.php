@@ -12,25 +12,40 @@
 <div class="show">
   <div class="stage">
 <?php foreach ($deck['slides'] as $i => $slide):
-    $img = App::imageUrl($slide['image'] ?? null); ?>
-    <section class="slide slide--<?= App::e($slide['type']) ?>" data-slide="<?= $i ?>"<?= $i ? ' hidden' : '' ?>>
+    $img = App::imageUrl($slide['image'] ?? null);
+    $layout = $slide['layout'] ?? 'plain';
+    // The photograph sits behind the words on these, so the text needs a
+    // scrim over it; elsewhere it is a figure beside them.
+    $behind = $img && ! empty($slide['behind']);
+    // Colours come resolved from the Deck, not decided here, so this and the
+    // PowerPoint writer cannot disagree about what the deck looked like.
+    $vars = sprintf('--bg:#%s;--ink:#%s;--muted:#%s;--accent:#%s', $slide['bg'], $slide['ink'], $slide['muted'], $slide['accent']); ?>
+    <section class="slide slide--<?= App::e($slide['type']) ?> is-<?= App::e($layout) ?><?= $behind ? ' has-bg' : '' ?>"
+             style="<?= App::e($vars) ?>" data-slide="<?= $i ?>"<?= $i ? ' hidden' : '' ?>>
+<?php if ($behind): ?>
+      <img class="bg" src="<?= $img ?>" alt="<?= App::e($slide['image']['title']) ?>">
+<?php endif ?>
+
 <?php if ($slide['type'] === 'title'): ?>
-      <h1><?= App::e($slide['heading']) ?></h1>
-      <div class="kicker"><?= App::e($slide['support']) ?></div>
+      <div class="words">
+        <h1><?= App::e($slide['heading']) ?></h1>
+        <div class="kicker"><?= App::e($slide['support']) ?></div>
+      </div>
 
 <?php elseif ($slide['type'] === 'statement'): ?>
       <div class="words">
         <h2><?= App::e($slide['heading']) ?></h2>
         <p><?= App::e($slide['support']) ?></p>
       </div>
-<?php if ($img): ?>
+<?php if ($img && ! $behind): ?>
       <figure><img src="<?= $img ?>" alt="<?= App::e($slide['image']['title']) ?>"></figure>
-      <div class="credit"><?= App::e($slide['image']['credit']) ?></div>
 <?php endif ?>
 
 <?php elseif ($slide['type'] === 'chart'):
     $max = max(array_column($slide['bars'], 'value')) ?: 1; ?>
-      <h2><?= App::e($slide['heading']) ?></h2>
+      <div class="words">
+        <h2><?= App::e($slide['heading']) ?></h2>
+      </div>
       <div class="plot">
 <?php foreach ($slide['bars'] as $b): ?>
         <div class="bar">
@@ -42,24 +57,38 @@
       </div>
 
 <?php elseif ($slide['type'] === 'quote'): ?>
-<?php if ($img): ?>
-      <img src="<?= $img ?>" alt="<?= App::e($slide['image']['title']) ?>">
-<?php endif ?>
       <div class="words">
         <h2>&ldquo;<?= App::e($slide['heading']) ?>&rdquo;</h2>
         <div class="attrib">&mdash; <?= App::e($slide['support']) ?></div>
       </div>
-<?php if ($img): ?>
-      <div class="credit"><?= App::e($slide['image']['credit']) ?></div>
-<?php endif ?>
+
+<?php elseif ($slide['type'] === 'big'): ?>
+      <div class="words">
+        <div class="kicker"><?= App::e($slide['kicker']) ?></div>
+        <div class="stat"><?= App::e($slide['heading']) ?></div>
+        <p><?= App::e($slide['support']) ?></p>
+      </div>
+
+<?php elseif ($slide['type'] === 'question'): ?>
+      <div class="words">
+        <h2><?= App::e($slide['heading']) ?></h2>
+      </div>
 
 <?php else: ?>
-      <h2><?= App::e($slide['heading']) ?></h2>
-      <ul>
+      <div class="words">
+        <h2><?= App::e($slide['heading']) ?></h2>
+<?php if (! empty($slide['bullets'])): ?>
+        <ul>
 <?php foreach ($slide['bullets'] as $b): ?>
-        <li><?= App::e($b) ?></li>
+          <li><?= App::e($b) ?></li>
 <?php endforeach ?>
-      </ul>
+        </ul>
+<?php endif ?>
+      </div>
+<?php endif ?>
+
+<?php if ($img): ?>
+      <div class="credit"><?= App::e($slide['image']['credit']) ?></div>
 <?php endif ?>
     </section>
 <?php endforeach ?>

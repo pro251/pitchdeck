@@ -135,70 +135,135 @@ button:hover, .btn:hover { filter: brightness(1.12); }
 
 /*
  * A fixed 16:9 box that scales to whatever it is projected on, so what is on
- * the screen is what is in the downloaded file.
+ * the screen is what is in the downloaded file. Type is sized in cqw against
+ * the slide rather than the viewport: the layout has to hold at any projector
+ * size, and a slide that reflows between the laptop and the room is a slide
+ * nobody has rehearsed.
  */
 .slide {
   width: min(100%, calc((100dvh - 7rem) * 16 / 9));
   aspect-ratio: 16 / 9;
-  background: var(--stage);
+  /* --bg, --ink, --muted and --accent are set per slide, inline, from the
+     deck's palette and the photograph's own colour. Nothing below may
+     hard-code a colour, or the slide stops matching its own deck. */
+  background: var(--bg);
+  color: var(--ink);
   position: relative;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 5%;
-  /* Type scales with the slide, not the viewport: the layout has to hold at
-     any projector size. */
+  padding: 6%;
   container-type: inline-size;
 }
 .slide[hidden] { display: none; }
 
-.slide h1 { font-size: 9cqw; line-height: 1.02; margin: 0; letter-spacing: -0.03em; font-weight: 800; }
-.slide h2 { font-size: 6.4cqw; line-height: 1.08; margin: 0; letter-spacing: -0.02em; font-weight: 800; }
+.words { position: relative; z-index: 2; min-width: 0; }
+
+.slide h1 { font-size: 9cqw; line-height: 1.02; margin: 0; letter-spacing: -0.03em; font-weight: 800; color: var(--ink); }
+.slide h2 { font-size: 6.2cqw; line-height: 1.08; margin: 0; letter-spacing: -0.02em; font-weight: 800; color: var(--ink); }
 .slide p { font-size: 2.6cqw; color: var(--muted); margin: 1.2em 0 0; max-width: 40ch; }
 
-.slide--title, .slide--closing { background: var(--signal); }
-.slide--title h1, .slide--closing h2 { color: #fff; }
-.slide--title .kicker {
+/* A photograph behind the words needs a scrim, or the words are gone. */
+.slide .bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
+/* Weighted toward the side the words are on, rather than a flat wash: a slab
+   of grey over the whole picture hides the photograph, and the photograph is
+   the joke. */
+.has-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(100deg, rgba(0,0,0,.82) 0%, rgba(0,0,0,.62) 45%, rgba(0,0,0,.38) 100%);
+}
+.slide--quote.has-bg::after,
+.slide--question.has-bg::after,
+.slide--big.has-bg::after,
+.slide--title.has-bg::after {
+  /* These are centred, so the darkening has to be even. */
+  background: radial-gradient(ellipse at center, rgba(0,0,0,.76) 0%, rgba(0,0,0,.6) 100%);
+}
+
+/* ── Title ────────────────────────────────────────────────────────────── */
+
+.kicker {
   margin-top: 1.6em;
   font-size: 1.8cqw;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: #ffd9d5;
   font-weight: 700;
+  color: var(--muted);
 }
 
-.slide--statement { flex-direction: row; align-items: center; gap: 5%; }
-.slide--statement .words { flex: 1 1 0; min-width: 0; }
-.slide--statement figure { flex: 0 0 42%; margin: 0; align-self: stretch; display: flex; }
+/* ── Statement ────────────────────────────────────────────────────────── */
+
+.slide--statement.is-right,
+.slide--statement.is-left { flex-direction: row; align-items: center; gap: 6%; }
+.slide--statement.is-left { flex-direction: row-reverse; }
+.slide--statement.is-right .words,
+.slide--statement.is-left .words { flex: 1 1 0; }
+.slide--statement figure {
+  flex: 0 0 42%;
+  margin: 0;
+  align-self: stretch;
+  display: flex;
+}
 .slide--statement img { width: 100%; height: 100%; object-fit: cover; }
+/* Overlaid, the words sit on the photograph and get more room. */
+.slide--statement.is-overlay h2 { font-size: 7cqw; max-width: 15ch; }
+
+/* ── Quote ────────────────────────────────────────────────────────────── */
 
 .slide--quote { align-items: center; text-align: center; }
-.slide--quote img {
-  position: absolute; inset: 0; width: 100%; height: 100%;
-  object-fit: cover;
-}
-/* The scrim is what keeps the quote readable over somebody's holiday photo. */
-.slide--quote::after { content: ""; position: absolute; inset: 0; background: rgba(0,0,0,.6); }
-.slide--quote .words { position: relative; z-index: 1; max-width: 80%; }
+.slide--quote .words { max-width: 84%; }
 .slide--quote h2 { font-size: 5cqw; }
-.slide--quote .attrib { margin-top: 1.4em; font-size: 2.4cqw; color: #e8c9be; font-weight: 600; }
+.attrib { margin-top: 1.4em; font-size: 2.4cqw; color: var(--accent); font-weight: 600; }
 
-.slide--chart .plot {
+/* ── Big number ───────────────────────────────────────────────────────── */
+
+.slide--big { align-items: center; text-align: center; }
+.slide--big .kicker { margin: 0 0 0.6em; }
+.stat {
+  font-size: 20cqw;
+  line-height: 0.88;
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  color: var(--accent);
+  /* The figure is the slide. Tabular digits stop it shifting between decks. */
+  font-variant-numeric: tabular-nums;
+}
+.slide--big p { margin: 0.5em auto 0; color: var(--ink); max-width: 24ch; font-size: 3cqw; }
+
+/* ── Question ─────────────────────────────────────────────────────────── */
+
+.slide--question { align-items: center; text-align: center; }
+.slide--question h2 { font-size: 8cqw; max-width: 14ch; }
+
+/* ── Chart ────────────────────────────────────────────────────────────── */
+
+.slide--chart { justify-content: flex-start; padding-top: 7%; }
+.slide--chart h2 { font-size: 5.4cqw; }
+.plot {
   display: flex; align-items: flex-end; gap: 2.5cqw;
-  height: 52%; margin-top: 4cqw;
+  flex: 1; margin-top: 5cqw; min-height: 0; position: relative; z-index: 2;
 }
 .bar { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
-.bar i { display: block; background: var(--signal); width: 100%; }
-.bar .v { font-size: 2.2cqw; font-weight: 800; text-align: center; margin-bottom: .4em; }
+.bar i { display: block; background: var(--accent); width: 100%; }
+.bar .v { font-size: 2.2cqw; font-weight: 800; text-align: center; margin-bottom: .4em; color: var(--ink); }
 .bar .l { font-size: 1.9cqw; color: var(--muted); text-align: center; margin-top: .5em; }
 
-.slide--closing ul { margin: 1.5em 0 0; padding: 0; list-style: none; }
-.slide--closing li { font-size: 3.4cqw; color: #fbe7e1; margin: .5em 0; font-weight: 600; }
+/* ── Lists: the mid-deck lessons and the closing asks ─────────────────── */
+
+.slide ul { margin: 1.4em 0 0; padding: 0; list-style: none; }
+.slide li { font-size: 3.2cqw; margin: .55em 0; font-weight: 600; color: var(--ink); }
+/* A hairline rule per item: structure that says "these are separate claims",
+   which is exactly what the performer has to defend one at a time. Drawn in
+   the slide's own ink so it works on a light ground as well as a dark one. */
+.slide--list li { border-top: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); padding-top: .5em; }
 
 .credit {
   position: absolute; right: 2%; bottom: 1.5%;
-  font-size: 1.3cqw; color: rgba(255,255,255,.45); z-index: 2;
+  font-size: 1.3cqw; color: rgba(255,255,255,.45); z-index: 3;
   max-width: 45%; text-align: right;
 }
 
@@ -227,7 +292,74 @@ button:hover, .btn:hover { filter: brightness(1.12); }
 :focus-visible { outline: 3px solid var(--signal); outline-offset: 2px; }
 
 @media (max-width: 620px) {
-  .slide--statement { flex-direction: column; justify-content: center; }
+  .slide--statement.is-right, .slide--statement.is-left { flex-direction: column; justify-content: center; }
   .slide--statement figure { flex: 0 0 38%; width: 100%; }
   .said { display: none; }
+}
+
+/* ── Building a deck ──────────────────────────────────────────────────── */
+
+body.is-building { overflow: hidden; }
+
+.building {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgba(14, 15, 19, 0.94);
+  padding: 2rem;
+  text-align: center;
+}
+.building[hidden] { display: none; }
+
+.building__inner { max-width: 30rem; }
+
+/* Five slide-shaped bars that fill one after another. The deck is what is
+   being waited for, so that is what the indicator shows. */
+.building__slides {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+.building__slides i {
+  display: block;
+  width: 3.4rem;
+  aspect-ratio: 16 / 9;
+  border: 2px solid var(--line);
+  background: linear-gradient(to right, var(--signal) 50%, transparent 50%) right / 200% 100% no-repeat;
+  animation: fill 2.6s ease-in-out infinite;
+}
+.building__slides i:nth-child(2) { animation-delay: 0.16s; }
+.building__slides i:nth-child(3) { animation-delay: 0.32s; }
+.building__slides i:nth-child(4) { animation-delay: 0.48s; }
+.building__slides i:nth-child(5) { animation-delay: 0.64s; }
+
+@keyframes fill {
+  0%, 10%   { background-position: right; }
+  45%, 65%  { background-position: left; }
+  100%      { background-position: right; }
+}
+
+.building__word {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--bone);
+}
+.building__step {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+}
+
+input[readonly] { opacity: 0.6; }
+button:disabled { opacity: 0.5; cursor: default; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* No sweep. The bars stay filled, so the panel still reads as "working"
+     rather than as a frozen page. */
+  .building__slides i { animation: none; background-position: left; }
 }

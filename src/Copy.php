@@ -107,6 +107,68 @@ final class Copy
         'Mary Shelley', 'Benjamin Franklin', 'Ching Shih', 'Hypatia',
     ];
 
+    /**
+     * Captions under a big invented number.
+     *
+     * Real decks lean on one enormous figure with a line of explanation, and
+     * the explanation is always the part that does not survive a question.
+     */
+    public const STATS = [
+        'of {c} owners say the same',
+        'of the market is still unserved',
+        'growth since we started counting',
+        'faster than the nearest {c}',
+        'of respondents could not tell the difference',
+        'before anyone noticed',
+        'and that is the conservative figure',
+        'in the first quarter alone',
+        'of what the {c} was costing us',
+    ];
+
+    /** Headings for a big-number slide. */
+    public const STAT_HEADS = [
+        'The number that changed our minds',
+        'One figure',
+        'Start here',
+        'This is the whole argument',
+        'If you remember nothing else',
+    ];
+
+    /** Questions, set large, with nothing else on the slide. */
+    public const QUESTIONS = [
+        'What if the {c} was the point?',
+        'Who owns the {c}?',
+        'Why has nobody fixed the {c}?',
+        'Is the {c} really the problem?',
+        'What would you pay for a better {c}?',
+        'How long can we ignore the {c}?',
+        'Where does the {c} go next?',
+    ];
+
+    /** Headings for a three-bullet slide in the middle of a deck. */
+    public const LESSON_HEADS = [
+        'Three things the {c} taught us',
+        'What we got wrong',
+        'The short version',
+        'Where the time went',
+        'Our working assumptions',
+        'What the {c} told us',
+    ];
+
+    /** Mid-deck bullets. */
+    public const LESSONS = [
+        'The {c} was never the bottleneck',
+        'Nobody asked for the {c}',
+        'We built the {c} twice',
+        'The {c} is cheaper than it looks',
+        'Everyone already has a {c}',
+        'The {c} does not scale',
+        'We underestimated the {c}',
+        'The {c} is a people problem',
+        'Our customers kept mentioning the {c}',
+        'The {c} is where the margin is',
+    ];
+
     /** Closing headings. */
     public const CLOSINGS = [
         'Where we go from here',

@@ -16,7 +16,7 @@ namespace PitchDeck;
  * the next is tried, and a concept that defeats all three is dropped rather
  * than shown blank.
  */
-final class Images
+final class Images implements Pictures
 {
     /** Searching is pointless for words this generic. */
     private const SKIP_IN_TITLE = ['the', 'of', 'a', 'an', 'and'];
@@ -407,6 +407,9 @@ final class Images
                 'title' => $hits[$concept]['title'],
                 'credit' => $hits[$concept]['credit'],
                 'source' => $hits[$concept]['source'],
+                // The colour the picture is mostly made of, so a slide can
+                // take its accent from its own photograph.
+                'tint' => Palette::fromImage($file),
             ];
 
             file_put_contents($this->metaPath($concept), json_encode($meta, JSON_PRETTY_PRINT));
@@ -481,6 +484,18 @@ final class Images
 
         $file = $this->path($concept);
 
-        return is_file($file) && filesize($file) > 0 ? [...$decoded, 'file' => $file] : null;
+        if (! is_file($file) || filesize($file) === 0) {
+            return null;
+        }
+
+        // Pictures cached before tints existed. Sampled once and written
+        // back, rather than on every read: this is a 16x16 rescale, which is
+        // cheap but not free, and a deck does five of them.
+        if (! array_key_exists('tint', $decoded)) {
+            $decoded['tint'] = Palette::fromImage($file);
+            file_put_contents($meta, json_encode([...$decoded, 'file' => $file], JSON_PRETTY_PRINT));
+        }
+
+        return [...$decoded, 'file' => $file];
     }
 }

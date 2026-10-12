@@ -59,6 +59,30 @@ app and nothing semantic goes over the wire.
 4. **Assemble** — five slides from templates in `Copy.php`. No language model,
    same as the original.
 
+## The design drifts too
+
+Everything drifted except the colours, and every deck came out the same dark
+grey with the same red on it -- which made it look like one template filled in
+repeatedly, because it was.
+
+- **A palette per deck** (`Palette::SCHEMES`), so two decks do not look alike.
+- **A ground per slide** within that palette, so slide four is not slide two.
+- **A slide showing a photograph takes its accent FROM that photograph.** The
+  tint is sampled at cache time and pushed until it reads against whatever
+  ground it landed on. A deck about langoustines comes out the colour of a
+  langoustine.
+- **The shape of the deck is sampled too.** Slide one is a title and slide
+  five a closing; the middle three are drawn without replacement from six
+  types, so nothing is guaranteed to appear and the chart turns up in about
+  three decks in ten. It used to be slide three of everything, which a room
+  learns after two rounds.
+
+Colours are resolved in `Deck::paint()`, not in the renderers, so the browser
+and the `.pptx` cannot disagree about what the deck looked like. Every
+combination is asserted readable at 4.5:1 -- this is projected in a bar with
+the house lights half up, and text that fails there does not read as a style
+choice, it reads as a slide that failed to load.
+
 ## Things that cost a session to learn
 
 - **The drift must land on a specific object, not a category.** "System",
@@ -84,6 +108,11 @@ app and nothing semantic goes over the wire.
   Each pass is a correlated subquery; an index made afterwards turns a
   seven-second build into one still running after seven minutes. This cost
   three rebuilds.
+- **`readableOn` must measure, not guess.** Choosing black or white from a
+  luminance threshold put white on amber at 2.3:1. Compare the contrast of
+  both candidates and take the winner.
+- **PHP's `/` returns an int when it divides evenly.** `0/255` is int 0, which
+  made `toHsl` quietly stop honouring its own float return type.
 - **This box drops every connection past about 18 in flight.** Not a provider
   refusing — all of them fail together with no response, which looks exactly
   like the whole internet being down. `Http::MAX_PARALLEL` is 12.

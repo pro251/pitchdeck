@@ -13,7 +13,7 @@
 
 $root = dirname(__DIR__);
 
-foreach (['Rng', 'Http', 'Drift', 'Images', 'Copy', 'Deck', 'Pptx', 'Store', 'App'] as $class) {
+foreach (['Rng', 'Palette', 'Http', 'Drift', 'Pictures', 'Images', 'Copy', 'Deck', 'Pptx', 'Store', 'App'] as $class) {
     require $root.'/src/'.$class.'.php';
 }
 

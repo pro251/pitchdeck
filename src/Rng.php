@@ -37,7 +37,11 @@ final class Rng
         $this->state ^= $this->state >> 7;
         $this->state ^= ($this->state << 17) & 0x7fffffffffffffff;
 
-        return $this->state % $bound;
+        // Taken from the HIGH bits. A plain `% $bound` reads the low ones,
+        // and xorshift's low bits carry much less entropy than its high
+        // ones -- picking one of twelve palettes that way returned the same
+        // palette five times in eight consecutive decks.
+        return ($this->state >> 17) % $bound;
     }
 
     /** @template T @param array<T> $items @return T */
